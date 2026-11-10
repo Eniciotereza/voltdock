@@ -246,7 +246,8 @@
 
   // Add authorized test emails here
   const ALLOWED_TEST_EMAILS = [
-    "voltdocktest@gmail.com" // Replace with your exact VoltDock test/admin email
+    "voltdocktest@gmail.com",
+    "eniciotereza5000@gmail.com"
   ];
 
   let countdownInterval;
@@ -255,18 +256,54 @@
 
   async function ensureAuthenticatedUser() {
     let currentUser = auth.currentUser;
-    if (!currentUser) {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      const result = await auth.signInWithPopup(provider);
-      currentUser = result.user;
+    if (currentUser && currentUser.email && ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
+      return currentUser;
     }
 
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    try {
+      // 1. Try Google Sign-In Popup
+      const result = await auth.signInWithPopup(provider);
+      currentUser = result.user;
+    } catch (popupError) {
+      console.warn("Popup error or blocked, trying redirect fallback:", popupError);
+      
+      // 2. Fallback to mobile redirect if popup was blocked
+      if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+        alert("Redirecting to Google Sign-In...");
+        await auth.signInWithRedirect(provider);
+        return null;
+      } else {
+        alert("Firebase Auth Error: " + popupError.message + " (" + popupError.code + ")");
+        throw popupError;
+      }
+    }
+
+    // 3. Verify signed-in account is in the allowed test list
     if (!currentUser || !currentUser.email || !ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
       await auth.signOut();
-      throw new Error(`Access Restricted: ${currentUser ? currentUser.email : 'User'} is not authorized for testing.`);
+      alert(`Access Restricted: ${currentUser ? currentUser.email : 'User'} is not authorized for testing.`);
+      throw new Error("Unauthorized test email.");
     }
+
     return currentUser;
   }
+
+  // Mobile redirect completion listener
+  auth.getRedirectResult().then((result) => {
+    if (result && result.user) {
+      const email = result.user.email.toLowerCase();
+      if (!ALLOWED_TEST_EMAILS.includes(email)) {
+        auth.signOut();
+        alert(`Access Restricted: ${email} is not authorized.`);
+      } else {
+        toast("Signed In", `Authenticated as ${email}`);
+      }
+    }
+  }).catch((error) => {
+    console.error("Redirect auth error:", error);
+  });
 
   async function reserveSlot(stationId, durationSeconds = 10) {
     if (penaltyActive) {
@@ -280,10 +317,10 @@
     }
 
     try {
-      // Step 1: Force Google Auth & Whitelist Check
+      // Authenticate user before booking
       const authenticatedUser = await ensureAuthenticatedUser();
+      if (!authenticatedUser) return; // Exit if mobile redirect initiated
 
-      // Step 2: Generate OTP and write to RTDB
       const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
 
       await rtdb.ref('locks/' + stationId).update({
@@ -299,7 +336,7 @@
       result.classList.add('show');
 
     } catch (error) {
-      alert("Reservation blocked: " + error.message);
+      console.error("Reservation error:", error);
     }
   }
 
@@ -332,7 +369,7 @@
     
     setTimeout(() => {
       penaltyActive = false;
-      if(result.innerHTML.includes("Expired")) {
+      if(result.innerHTML && result.innerHTML.includes("Expired")) {
          result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Penalty Cleared</div><div class="result-copy">You can book a slot again.</div>`;
       }
     }, 300000); 
