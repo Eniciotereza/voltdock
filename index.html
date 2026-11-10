@@ -221,7 +221,7 @@
 </section>
 </main>
 
-<footer class="footer"><div class="wrap footer-inner"><div class="brand"><span class="brandmark" style="width:29px;height:29px;border-radius:9px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg></span><span>volt<em>dock</em></span></div><div>VoltDock two-slot prototype · Connected with Firebase Realtime DB</div><div><strong>Guest Mode</strong> · Hardware OTP Integration active</div></div></footer>
+<footer class="footer"><div class="wrap footer-inner"><div class="brand"><span class="brandmark" style="width:29px;height:29px;border-radius:9px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg></span><span>volt<em>dock</em></span></div><div>VoltDock two-slot prototype · Connected with Firebase Realtime DB</div><div><strong>Authenticated Mode</strong> · Hardware OTP Integration active</div></div></footer>
 <div class="toast" id="toast" role="status" aria-live="polite"><b id="toastTitle">Done</b><span id="toastMessage"></span></div>
 
 <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
@@ -242,12 +242,33 @@
 
   firebase.initializeApp(firebaseConfig);
   const rtdb = firebase.database();
+  const auth = firebase.auth();
+
+  // Add authorized test emails here
+  const ALLOWED_TEST_EMAILS = [
+    "voltdockstation@gmail.com" // Replace with your exact VoltDock test/admin email
+  ];
 
   let countdownInterval;
   let penaltyActive = false;
   let slotLockedByUser = false;
 
-  function reserveSlot(stationId, durationSeconds = 10) {
+  async function ensureAuthenticatedUser() {
+    let currentUser = auth.currentUser;
+    if (!currentUser) {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      const result = await auth.signInWithPopup(provider);
+      currentUser = result.user;
+    }
+
+    if (!currentUser || !currentUser.email || !ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
+      await auth.signOut();
+      throw new Error(`Access Restricted: ${currentUser ? currentUser.email : 'User'} is not authorized for testing.`);
+    }
+    return currentUser;
+  }
+
+  async function reserveSlot(stationId, durationSeconds = 10) {
     if (penaltyActive) {
       alert("Cooldown active! Please wait for the penalty to clear.");
       return;
@@ -258,21 +279,28 @@
       return;
     }
 
-    const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
+    try {
+      // Step 1: Force Google Auth & Whitelist Check
+      const authenticatedUser = await ensureAuthenticatedUser();
 
-    rtdb.ref('locks/' + stationId).update({
-      reservedBy: "guest_rider@voltdock.demo",
-      otp: generatedOTP,
-      status: "RESERVED",
-      timestamp: Date.now()
-    }).then(() => {
+      // Step 2: Generate OTP and write to RTDB
+      const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
+
+      await rtdb.ref('locks/' + stationId).update({
+        reservedBy: authenticatedUser.email,
+        otp: generatedOTP,
+        status: "RESERVED",
+        timestamp: Date.now()
+      });
+
       startBookingTimer(stationId, durationSeconds);
       const result = document.getElementById('bookingResult');
-      result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Battery reserved</div><div class="result-copy">OTP: <b style="font-size:18px;color:white">${generatedOTP}</b><br>Hurry! <span id="liveTimer" style="color:var(--amber);font-weight:bold;"></span> remaining.</div>`;
+      result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Battery reserved (${authenticatedUser.email})</div><div class="result-copy">OTP: <b style="font-size:18px;color:white">${generatedOTP}</b><br>Hurry! <span id="liveTimer" style="color:var(--amber);font-weight:bold;"></span> remaining.</div>`;
       result.classList.add('show');
-    }).catch(error => {
-      alert("Reservation failed: " + error.message);
-    });
+
+    } catch (error) {
+      alert("Reservation blocked: " + error.message);
+    }
   }
 
   function startBookingTimer(stationId, duration) {
