@@ -244,7 +244,7 @@
   const rtdb = firebase.database();
   const auth = firebase.auth();
 
-  // Add authorized test emails here
+  // Whitelisted test emails
   const ALLOWED_TEST_EMAILS = [
     "voltdocktest@gmail.com",
     "eniciotereza5000@gmail.com"
@@ -263,13 +263,12 @@
     const provider = new firebase.auth.GoogleAuthProvider();
 
     try {
-      // 1. Try Google Sign-In Popup
-      const result = await auth.signInWithPopup(provider);
+      // Using browserPopupRedirectResolver for robust mobile/popup handling
+      const result = await auth.signInWithPopup(provider, firebase.auth.browserPopupRedirectResolver);
       currentUser = result.user;
     } catch (popupError) {
       console.warn("Popup error or blocked, trying redirect fallback:", popupError);
       
-      // 2. Fallback to mobile redirect if popup was blocked
       if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
         alert("Redirecting to Google Sign-In...");
         await auth.signInWithRedirect(provider);
@@ -280,7 +279,6 @@
       }
     }
 
-    // 3. Verify signed-in account is in the allowed test list
     if (!currentUser || !currentUser.email || !ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
       await auth.signOut();
       alert(`Access Restricted: ${currentUser ? currentUser.email : 'User'} is not authorized for testing.`);
@@ -317,9 +315,8 @@
     }
 
     try {
-      // Authenticate user before booking
       const authenticatedUser = await ensureAuthenticatedUser();
-      if (!authenticatedUser) return; // Exit if mobile redirect initiated
+      if (!authenticatedUser) return;
 
       const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
 
@@ -404,7 +401,6 @@
 
     const parulStation = demoKiosks.find(k => k.id === 'Parul');
 
-    // ESP32 SUCCESS CHECK: When OTP is entered on hardware, it clears the OTP in Firebase
     if ((data.otp === "" || !data.otp) && data.status === 'RESERVED') {
       clearInterval(countdownInterval);
       const result = document.getElementById('bookingResult');
@@ -421,7 +417,6 @@
       renderSlots();
       renderKiosks();
     } 
-    // INITIAL BOOKING SYNC
     else if (data.status === 'RESERVED' && !slotLockedByUser) {
       if (parulStation) parulStation.ready = 0;
       
