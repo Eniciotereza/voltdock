@@ -228,7 +228,7 @@
   <div class="modal"><div class="modal-head"><h3 id="modalTitle">Start a battery swap</h3><button class="close" onclick="closeModal()" aria-label="Close dialog">×</button></div><p id="modalCopy">Simulate the rider journey using the swap panel below.</p><div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="closeModal();scrollToSection('simulator')">Continue to simulator →</button></div></div>
 </div>
 
-<!-- Firebase Integration Script -->
+<!-- Firebase Integration Script (Email/Password Mode) -->
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyDE_w2v_V1Dl97KBOs2nPQU_VNQytRSHLI",
@@ -244,7 +244,6 @@
   const rtdb = firebase.database();
   const auth = firebase.auth();
 
-  // Whitelisted test emails
   const ALLOWED_TEST_EMAILS = [
     "voltdocktest@gmail.com",
     "eniciotereza5000@gmail.com"
@@ -256,52 +255,40 @@
 
   async function ensureAuthenticatedUser() {
     let currentUser = auth.currentUser;
-    if (currentUser && currentUser.email && ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
+    if (currentUser && currentUser.email) {
       return currentUser;
     }
 
-    const provider = new firebase.auth.GoogleAuthProvider();
+    let email = prompt("Enter presentation test email:", "voltdocktest@gmail.com");
+    if (!email) return null;
+    email = email.trim().toLowerCase();
 
-    try {
-      // Using browserPopupRedirectResolver for robust mobile/popup handling
-      const result = await auth.signInWithPopup(provider, firebase.auth.browserPopupRedirectResolver);
-      currentUser = result.user;
-    } catch (popupError) {
-      console.warn("Popup error or blocked, trying redirect fallback:", popupError);
-      
-      if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
-        alert("Redirecting to Google Sign-In...");
-        await auth.signInWithRedirect(provider);
-        return null;
-      } else {
-        alert("Firebase Auth Error: " + popupError.message + " (" + popupError.code + ")");
-        throw popupError;
-      }
-    }
-
-    if (!currentUser || !currentUser.email || !ALLOWED_TEST_EMAILS.includes(currentUser.email.toLowerCase())) {
-      await auth.signOut();
-      alert(`Access Restricted: ${currentUser ? currentUser.email : 'User'} is not authorized for testing.`);
+    if (!ALLOWED_TEST_EMAILS.includes(email)) {
+      alert("Unauthorized demo email.");
       throw new Error("Unauthorized test email.");
     }
 
-    return currentUser;
-  }
+    let password = prompt("Enter demo password (min 6 chars):", "voltdock123");
+    if (!password) return null;
 
-  // Mobile redirect completion listener
-  auth.getRedirectResult().then((result) => {
-    if (result && result.user) {
-      const email = result.user.email.toLowerCase();
-      if (!ALLOWED_TEST_EMAILS.includes(email)) {
-        auth.signOut();
-        alert(`Access Restricted: ${email} is not authorized.`);
+    try {
+      const res = await auth.signInWithEmailAndPassword(email, password);
+      return res.user;
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        try {
+          const created = await auth.createUserWithEmailAndPassword(email, password);
+          return created.user;
+        } catch (createErr) {
+          alert("Auth Error: " + createErr.message);
+          throw createErr;
+        }
       } else {
-        toast("Signed In", `Authenticated as ${email}`);
+        alert("Auth Error: " + err.message);
+        throw err;
       }
     }
-  }).catch((error) => {
-    console.error("Redirect auth error:", error);
-  });
+  }
 
   async function reserveSlot(stationId, durationSeconds = 10) {
     if (penaltyActive) {
