@@ -285,7 +285,7 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
     renderSlots();
   }
 
-  // Slot-Specific Database Listeners (Updated to AR1 and AR2)
+  // Slot-Specific Database Listeners
   ['AR1', 'AR2'].forEach(st => {
     [1, 2].forEach(slotId => {
       rtdb.ref(`locks/${st}/slot${slotId}`).on('value', snapshot => {
@@ -294,8 +294,11 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
 
         let uiSlot = stationData[st].slots[slotId];
         
+        // Match UI directly to database reservation states
         if (data.status === 'RESERVED') {
           uiSlot.state = 'reserved';
+        } else if (data.status === 'LOCKED') {
+          uiSlot.state = 'locked';  // <-- This triggers the red styling!
         } else if (data.status === 'EXPIRED') {
            uiSlot.state = (data.chargeLevel > 0) ? 'ready' : 'empty';
         } else if (data.status === 'READY') {
@@ -304,6 +307,7 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
            uiSlot.state = 'empty';
         }
 
+        // If OTP clears but it was reserved (Physical keypad used)
         if (data.status === 'RESERVED' && (!data.otp || data.otp === "")) {
           uiSlot.state = 'empty';
           if (st === activeStationId && selectedSlotId === slotId && document.getElementById('bookingResult').classList.contains('show')) {
