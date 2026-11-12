@@ -99,8 +99,8 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
       <div class="field" style="margin-bottom: 24px;">
         <label for="stationSelector">Active Location</label>
         <select id="stationSelector" onchange="switchStation()">
-          <option value="Parul">Seaside College Campus</option>
-          <option value="ONGC">Oil and Gas Station</option>
+          <option value="AR1">Seaside College Campus</option>
+          <option value="AR2">Oil and Gas Station</option>
         </select>
       </div>
 
@@ -137,7 +137,7 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
   </div>
 </section>
 
-<!-- Tutorial Section (Moved Down) -->
+<!-- Tutorial Section -->
 <section class="wrap section" id="tutorial">
   <div class="section-head"><div><div class="section-kicker">02 / How it works</div><h2>Simple for riders. Intelligent underneath.</h2></div></div>
   <div class="dashboard" style="grid-template-columns: 1fr 1fr;">
@@ -242,12 +242,12 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
     return new Promise((resolve) => { pendingAuthResolve = resolve; });
   }
 
-  // Multi-Station / Multi-Slot State Management
+  // Multi-Station / Multi-Slot State Management (Updated to AR1 and AR2)
   let stationData = {
-    'Parul': { name: 'Seaside College Campus', slots: { 1: { state: 'ready', charge: 100 }, 2: { state: 'empty', charge: 0 } } },
-    'ONGC': { name: 'Oil and Gas Station', slots: { 1: { state: 'ready', charge: 85 }, 2: { state: 'charging', charge: 20 } } }
+    'AR1': { name: 'Seaside College Campus', slots: { 1: { state: 'ready', charge: 100 }, 2: { state: 'empty', charge: 0 } } },
+    'AR2': { name: 'Oil and Gas Station', slots: { 1: { state: 'ready', charge: 85 }, 2: { state: 'charging', charge: 20 } } }
   };
-  let activeStationId = 'Parul';
+  let activeStationId = 'AR1';
   let selectedSlotId = 1;
   let countdownInterval;
   let penaltyActive = false;
@@ -270,14 +270,13 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
       </div>`;
     }).join('');
     
-    // Update labels
     document.getElementById('uiSelectedLocation').innerText = stationData[activeStationId].name;
     document.getElementById('uiSelectedSlot').innerText = `Slot 0${selectedSlotId}`;
   }
 
   function switchStation() {
     activeStationId = document.getElementById('stationSelector').value;
-    selectedSlotId = 1; // reset to slot 1 on change
+    selectedSlotId = 1;
     renderSlots();
   }
 
@@ -286,9 +285,8 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
     renderSlots();
   }
 
-  // Slot-Specific Database Listeners
-  // We listen to Parul/slot1 and Parul/slot2 individually
-  ['Parul', 'ONGC'].forEach(st => {
+  // Slot-Specific Database Listeners (Updated to AR1 and AR2)
+  ['AR1', 'AR2'].forEach(st => {
     [1, 2].forEach(slotId => {
       rtdb.ref(`locks/${st}/slot${slotId}`).on('value', snapshot => {
         const data = snapshot.val();
@@ -296,11 +294,9 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
 
         let uiSlot = stationData[st].slots[slotId];
         
-        // Match UI to database reservation states
         if (data.status === 'RESERVED') {
           uiSlot.state = 'reserved';
         } else if (data.status === 'EXPIRED') {
-           // Fallback to what it was, roughly guessing based on DB charge level
            uiSlot.state = (data.chargeLevel > 0) ? 'ready' : 'empty';
         } else if (data.status === 'READY') {
            uiSlot.state = 'ready';
@@ -308,9 +304,8 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
            uiSlot.state = 'empty';
         }
 
-        // If OTP clears but it was reserved (Physical keypad used)
         if (data.status === 'RESERVED' && (!data.otp || data.otp === "")) {
-          uiSlot.state = 'empty'; // Battery taken
+          uiSlot.state = 'empty';
           if (st === activeStationId && selectedSlotId === slotId && document.getElementById('bookingResult').classList.contains('show')) {
             clearInterval(countdownInterval);
             document.getElementById('bookingResult').innerHTML = `<div class="result-title" style="color:var(--green)">✓ Access Granted!</div><div class="result-copy">ESP32 Keypad authentication successful. Battery removed.</div>`;
@@ -322,7 +317,6 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
     });
   });
 
-  // Booking Form Submission to specific slot node
   document.getElementById('bookingForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -345,7 +339,6 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
 
       const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
 
-      // IMPORTANT: Writes to specific slot node (locks/Parul/slot1) for independent ESP32 tracking
       await rtdb.ref(`locks/${activeStationId}/slot${selectedSlotId}`).update({
         reservedBy: authenticatedUser.email,
         otp: generatedOTP,
@@ -388,14 +381,15 @@ button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-deco
     rtdb.ref(`locks/${stationId}/slot${slotId}`).update({ otp: "", status: "EXPIRED" });
     
     const result = document.getElementById('bookingResult');
-    result.innerHTML = `<div class="result-title" style="color:var(--red)">⚠ Reservation Expired</div><div class="result-copy">You didn't reach on time. OTP wiped. 5-minute lockout active.</div>`;
+    result.innerHTML = `<div class="result-title" style="color:var(--red)">⚠ Reservation Expired</div><div class="result-copy">You didn't reach on time. OTP wiped.</div>`;
     
+    // Cooldown reduced from 5 minutes (300000ms) to 5 seconds (5000ms) for testing
     setTimeout(() => {
       penaltyActive = false;
       if(result.innerHTML && result.innerHTML.includes("Expired")) {
          result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Penalty Cleared</div><div class="result-copy">You can book a slot again.</div>`;
       }
-    }, 300000); 
+    }, 5000); 
   }
 
   // Init
