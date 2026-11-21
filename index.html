@@ -1,403 +1,1629 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#080d0c">
-<title>VoltDock — Smart Battery Exchange</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>60-Second Breach — Expert Edition</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #070b14;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      touch-action: none;
+    }
+    #app-wrapper {
+      width: 100%;
+      max-width: 940px;
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #hud {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: clamp(11px, 2vw, 14px);
+      letter-spacing: 0.35px;
+    }
+    .stat { white-space: nowrap; }
+    .stat span { color: #38bdf8; font-variant-numeric: tabular-nums; }
+    #mode-badge { color: #facc15 !important; }
+    #mode-badge.expert { color: #fb7185 !important; }
+    #best-time { color: #34d399 !important; }
+    #timer.danger { color: #f43f5e !important; animation: pulse 0.45s infinite alternate; }
+    @keyframes pulse { from { opacity: 1; } to { opacity: 0.45; } }
 
-<!-- Firebase JS SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.6.6/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.6/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.6/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.6/firebase-database-compat.js"></script>
+    #bars-row {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    #bars-row.hidden { display: none; }
+    .bar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .bar-track {
+      flex: 1;
+      height: 9px;
+      background: #1e293b;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #stamina-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
+      transition: width 0.05s linear;
+    }
+    #stamina-fill.sprint { background: linear-gradient(90deg, #eab308, #fef08a); }
+    #stamina-fill.cooldown { background: #64748b; }
+    #emp-status {
+      color: #38bdf8;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    #emp-status.hidden { display: none; }
 
-<style>
-:root{--bg:#080d0c;--panel:#101917;--line:#263630;--text:#edf7f1;--green:#b7ff63;--cyan:#67e8d3;--amber:#ffca70;--red:#ff7c7c;--radius:18px;--shadow:0 20px 70px #0005}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 75% -20%,#18392d 0,transparent 40%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-x: hidden;}
-button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
-.wrap{max-width:1240px;width:100%;margin:0 auto;padding:0 28px}
-.topbar{height:76px;border-bottom:1px solid #ffffff0d;display:flex;align-items:center;position:sticky;top:0;z-index:20;background:#080d0ce8;backdrop-filter:blur(18px)}.nav{display:flex;align-items:center;justify-content:space-between;width:100%;gap:24px}.brand{display:flex;align-items:center;gap:11px;font-size:19px;font-weight:800;letter-spacing:-.6px}.brandmark{width:35px;height:35px;border-radius:11px;background:var(--green);color:#101710;display:grid;place-items:center;box-shadow:0 0 28px #b7ff6333}.brandmark svg{width:21px}.brand span em{font-style:normal;color:var(--green)}.navlinks{display:flex;gap:28px;color:#a8b8b0;font-size:13px}.navlinks a:hover{color:var(--green)}.navright{display:flex;align-items:center;gap:12px}
-.status-pill{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:99px;color:#c7d4ce;font-size:12px}.auth-pill{display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #3c5938;background:#172519;border-radius:99px;color:var(--green);font-size:12px;font-weight:700}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
-.btn{border:0;border-radius:11px;padding:12px 17px;font-weight:750;font-size:13px;transition:.2s;display:inline-flex;align-items:center;justify-content:center;gap:9px}.btn:hover{transform:translateY(-1px)}.btn-primary{background:var(--green);color:#0a1209;box-shadow:0 8px 28px #b7ff6318}.btn-primary:hover{background:#c9ff8c}.btn-ghost{border:1px solid #34463e;background:#111b17;color:#e5f3eb}.btn-ghost:hover{border-color:#6d9b70}.btn-small{padding:8px 11px;font-size:12px;border-radius:99px}
-.hero{padding:76px 0 54px;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:42px;width:100%;}
-.eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--green);font-size:11px;text-transform:uppercase;letter-spacing:1.8px;font-weight:800}.eyebrow:before{content:"";height:1px;width:24px;background:var(--green)}h1{font-size:clamp(42px,5vw,68px);line-height:1.02;letter-spacing:-3.4px;margin:20px 0 20px;max-width:650px}h1 .accent{color:var(--green)}.hero-copy{max-width:530px;color:#a5b6ad;font-size:16px;line-height:1.75}.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin:27px 0 29px}.trustline{display:flex;align-items:center;gap:12px;color:#879990;font-size:12px}.avatars{display:flex}.avatar{height:27px;width:27px;border:2px solid var(--bg);border-radius:50%;margin-left:-7px;background:#243d31;display:grid;place-items:center;font-size:10px}.avatar:first-child{margin-left:0}.trustline strong{color:#d7e5dc}
-.hero-art{position:relative;min-height:430px;display:grid;place-items:center;width:100%}.halo{position:absolute;width:390px;height:390px;border:1px solid #b7ff6318;border-radius:50%;box-shadow:0 0 90px #70dc4b0a,inset 0 0 90px #70dc4b08}.halo:before,.halo:after{content:"";position:absolute;border:1px solid #b7ff6317;border-radius:50%;inset:32px}.halo:after{inset:70px}
-.kiosk{position:relative;width:270px;height:355px;padding:19px 17px 16px;border:1px solid #3b5548;border-radius:22px;background:linear-gradient(145deg,#26352e,#101714 62%);box-shadow:0 35px 75px #000b,0 0 50px #a5ff5d0c;transform:perspective(800px) rotateY(-8deg)}.kiosk-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}.mini-brand{font-size:10px;font-weight:900;letter-spacing:1.5px}.mini-brand b{color:var(--green)}.led{width:6px;height:6px;background:var(--green);border-radius:50%;box-shadow:0 0 10px var(--green)}.kiosk-screen{border:1px solid #375443;border-radius:10px;background:#08110d;padding:12px;margin-bottom:14px}.screen-label{color:#6d8d78;font-size:8px;letter-spacing:1.2px}.screen-big{font-size:19px;font-weight:800;letter-spacing:-.5px;margin-top:4px}.screen-line{display:flex;justify-content:space-between;font-size:8px;color:#8da99a;margin-top:9px}.screen-bar{height:4px;border-radius:99px;background:#24362b;margin-top:5px;overflow:hidden}.screen-bar span{display:block;height:100%;width:78%;background:var(--green);box-shadow:0 0 9px var(--green)}.slot-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.mini-slot{height:43px;border:1px solid #34483c;background:linear-gradient(135deg,#18251d,#0d1511);border-radius:7px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;font-weight:700;color:var(--green)}.mini-slot:nth-child(2){color:#52665a}.kiosk-bottom{display:flex;align-items:center;justify-content:space-between;color:#7b9183;font-size:8px;margin-top:13px}.kiosk-bottom b{color:var(--green);font-size:9px}
-.float-card{position:absolute;border:1px solid #33493c;background:#111b17ee;box-shadow:var(--shadow);border-radius:13px;padding:12px 14px;backdrop-filter:blur(10px)}.float-card .small{font-size:10px;color:#90a49a}.float-card .big{font-size:19px;font-weight:800;letter-spacing:-.5px}.float-card .big span{font-size:10px;color:var(--green);font-weight:600}.float-one{top:72px;right:-1px}.float-two{bottom:62px;left:-2px}.float-icon{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:8px;background:#263a27;color:var(--green);margin-right:7px;vertical-align:middle}
-.section{padding:44px 0 74px}.section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:26px}.section-kicker{color:var(--green);font-size:11px;text-transform:uppercase;letter-spacing:1.6px;font-weight:800}.section h2{font-size:clamp(28px,3vw,40px);line-height:1.1;letter-spacing:-1.5px;margin:9px 0 0}.section-desc{max-width:430px;color:#91a49a;font-size:13px}
-.dashboard{display:grid;grid-template-columns:1.2fr 0.8fr;gap:17px}.panel{background:linear-gradient(145deg,#121c18,#0d1411);border:1px solid var(--line);border-radius:var(--radius);padding:23px;box-shadow:0 12px 45px #0001}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}.panel-title{font-size:15px;font-weight:800}.panel-sub{font-size:11px;color:#83968b;margin-top:3px}.live-label{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--green);border:1px solid #3c5938;background:#172519;border-radius:99px;padding:6px 9px}
-.slot-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:17px;color:#93a69a;font-size:10px}.legend-item{display:flex;align-items:center;gap:6px}.legend-dot{width:7px;height:7px;border-radius:2px}
-.slot-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.slot{border:2px solid transparent;background:#0c1410;border-radius:14px;min-height:130px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;position:relative;overflow:hidden;transition:.2s;cursor:pointer;box-shadow:inset 0 0 0 1px #2c4035}.slot:hover{background:#111c16;box-shadow:inset 0 0 0 1px #3d5648}.slot.selected{border-color:var(--green);background:#101a15;box-shadow:0 0 25px #b7ff6315}.slot:after{content:"";position:absolute;inset:0;background:linear-gradient(145deg,#ffffff04,transparent);pointer-events:none}.slot .slot-num{font-size:9px;color:#80958a;letter-spacing:.6px;text-transform:uppercase}.slot .slot-name{font-size:11px;font-weight:700;text-align:center}.slot .slot-state{font-size:9px;color:#7e9588;text-transform:uppercase;letter-spacing:0.5px}
-/* New Battery Typographic UI */
-.slot-charge{font-size:32px;font-weight:850;letter-spacing:-1.5px;display:flex;align-items:center;gap:4px}.slot-charge small{font-size:16px;opacity:0.7}.slot-charge span{font-size:22px}
-.slot.ready .slot-charge{color:var(--green)}.slot.ready .slot-state{color:var(--green)}
-.slot.charging .slot-charge{color:var(--amber)}.slot.charging .slot-state{color:var(--amber)}
-.slot.reserved .slot-charge{color:var(--cyan)}.slot.reserved .slot-state{color:var(--cyan)}
-.slot.locked .slot-charge{color:var(--red)}.slot.locked .slot-state{color:var(--red)}
-.slot.empty .slot-charge{color:#4a5c51}.slot.empty .slot-state{color:#4a5c51}
+    #stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      max-height: 62vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+      display: block;
+    }
 
-.form-row{display:grid;grid-template-columns:1fr;gap:10px}.field{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}.field label{font-size:11px;color:#a8b8af;font-weight:700}.field input,.field select{width:100%;border:1px solid #2e4438;background:#09110d;color:#e8f4ec;border-radius:10px;padding:12px;outline:none}.field input:focus,.field select:focus{border-color:#83bd5a;box-shadow:0 0 0 3px #b7ff6310}
-.result-box{border:1px solid #36523b;background:linear-gradient(120deg,#17261a,#111a15);border-radius:13px;padding:15px;margin-top:15px;display:none}.result-box.show{display:block;animation:fade .25s ease}.result-title{font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px}.result-copy{font-size:11px;color:#a0b2a6;margin-top:6px;line-height:1.5}
-.demo-badge{display:inline-flex;gap:7px;align-items:center;font-size:10px;color:var(--amber);border:1px solid #57482b;background:#241e12;border-radius:7px;padding:6px 9px}
-.toast{position:fixed;right:22px;bottom:22px;z-index:60;max-width:340px;padding:14px 17px;border:1px solid #3d5c40;background:#142219;border-radius:13px;box-shadow:var(--shadow);font-size:12px;display:none}.toast.show{display:block;animation:fade .2s ease}.toast b{display:block;color:var(--green);margin-bottom:3px}
-.modal-backdrop{position:fixed;inset:0;z-index:50;background:#000a;backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px}.modal-backdrop.show{display:flex}.modal{width:min(480px,100%);border:1px solid #385040;border-radius:18px;background:#101a15;padding:24px;box-shadow:0 30px 100px #0009}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.modal h3{margin:0;font-size:19px}.close{background:#1c2a21;border:1px solid #304337;color:#cfe0d3;border-radius:8px;width:31px;height:31px}.modal p{font-size:12px;color:#9aada1}.modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:16px}
-@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:55px;text-align:center}.hero-copy{margin:0 auto}.hero-actions,.trustline{justify-content:center}.dashboard{grid-template-columns:1fr}}
-@media(max-width:600px){.wrap{padding:0 17px}.topbar{height:65px}.navlinks{display:none}.status-pill{display:none}.brand{font-size:17px}.hero{padding:42px 0 30px}h1{font-size:43px;letter-spacing:-2.3px}.hero-art{min-height:350px;transform:scale(.9)}.halo{width:310px;height:310px}.float-one{right:-2px;top:45px}.float-two{left:-1px;bottom:40px}.slot-layout{grid-template-columns:1fr}.section{padding:30px 0}}
-</style>
+    /* Difficulty Bar */
+    #difficulty-bar {
+      position: absolute;
+      top: 58%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      z-index: 5;
+    }
+    #difficulty-bar.hidden { display: none; }
+    .diff-btn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: rgba(15, 23, 42, 0.94);
+      color: #cbd5e1;
+      font-weight: 700;
+      font-size: clamp(11px, 1.9vw, 14px);
+      cursor: pointer;
+    }
+    .diff-btn.active {
+      background: #0284c7;
+      border-color: #7dd3fc;
+      color: #ffffff;
+    }
+    .diff-btn[data-mode="EXPERT"].active {
+      background: #be123c;
+      border-color: #fda4af;
+      box-shadow: 0 0 18px rgba(244, 63, 94, 0.55);
+    }
+
+    /* QTE Modal Overlay */
+    #qte-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 11, 20, 0.72);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 12;
+      border-radius: 10px;
+    }
+    #qte-overlay.visible { display: flex; }
+    #qte-title {
+      font-size: clamp(15px, 2.5vw, 21px);
+      font-weight: 800;
+      color: #facc15;
+      text-align: center;
+    }
+    #qte-prompt {
+      font-size: clamp(13px, 2.1vw, 17px);
+      color: #e2e8f0;
+      text-align: center;
+    }
+    #qte-bar-wrap {
+      position: relative;
+      width: min(340px, 76%);
+      height: 22px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #qte-target-zone {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(16, 185, 129, 0.45);
+      border-left: 2px solid #34d399;
+      border-right: 2px solid #34d399;
+    }
+    #qte-needle {
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 6px;
+      background: #facc15;
+      box-shadow: 0 0 10px #facc15;
+      left: 0%;
+    }
+    #qte-action-btn {
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: 2px solid #34d399;
+      background: #065f46;
+      color: #ecfdf5;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* Touch Controls */
+    #touch-controls {
+      display: none;
+      width: 100%;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      min-height: 104px;
+      gap: 10px;
+    }
+    @media (pointer: coarse), (max-width: 720px) {
+      #touch-controls { display: flex; }
+      #controls-hint { display: none; }
+      #stage { max-height: 54vh; }
+    }
+    #joystick-zone {
+      position: relative;
+      width: 98px;
+      height: 98px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid rgba(56, 189, 248, 0.35);
+      flex-shrink: 0;
+    }
+    #joystick-knob {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      left: 28px;
+      top: 28px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7);
+      pointer-events: none;
+    }
+    .touch-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .action-pill {
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 12px;
+      border: 2px solid #38bdf8;
+      background: rgba(2, 132, 199, 0.22);
+      color: #e0f2fe;
+      cursor: pointer;
+    }
+    .action-pill.hidden { display: none; }
+    #hack-btn {
+      border-color: #facc15;
+      background: rgba(250, 204, 21, 0.2);
+      color: #fef08a;
+    }
+    #emp-btn {
+      border-color: #fb7185;
+      background: rgba(244, 63, 94, 0.2);
+      color: #fecdd3;
+    }
+
+    #controls-hint {
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.4;
+    }
+  </style>
 </head>
 <body>
-<header class="topbar">
-  <div class="wrap nav">
-    <a class="brand" href="#home" aria-label="VoltDock home"><span class="brandmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg></span><span>volt<em>dock</em></span></a>
-    <nav class="navlinks"><a href="#dashboard">Live Dashboard</a><a href="#tutorial">How it works</a><a href="#technology">Technology</a></nav>
-    <div class="navright" id="navAuthContainer">
-      <button class="btn btn-primary btn-small" onclick="openAuthModal()" style="min-width:80px">Sign In</button>
+  <div id="app-wrapper">
+    <div id="hud">
+      <div class="stat">MODE: <span id="mode-badge">NORMAL</span></div>
+      <div class="stat">FLOOR: <span id="floor-badge">F1</span></div>
+      <div class="stat">TERMINALS: <span id="terminals-count">0 / 3</span></div>
+      <div class="stat">BEST: <span id="best-time">0.00s</span></div>
+      <div class="stat">DEADLINE: <span id="timer">60.00s</span></div>
     </div>
-  </div>
-</header>
-<main>
-<section class="wrap hero" id="home">
-  <div>
-    <div class="eyebrow">The future of two-wheel mobility</div>
-    <h1>Charge less.<br><span class="accent">Ride more.</span></h1>
-    <p class="hero-copy">A smarter battery exchange network for electric two-wheelers. Swap a low battery for a charged one in minutes, or reserve a slot ahead of time while you ride.</p>
-    <div class="hero-actions"><button class="btn btn-primary" onclick="scrollToSection('dashboard')">View live kiosk <span>↓</span></button><button class="btn btn-ghost" onclick="scrollToSection('tutorial')"><span>↗</span> Learn how it works</button></div>
-    <div class="trustline"><div class="avatars"><span class="avatar">⚡</span><span class="avatar">♻</span><span class="avatar">↗</span></div><span><strong>One kiosk. Two slots.</strong> Built around your ride.</span></div>
-  </div>
-  <div class="hero-art" aria-label="VoltDock kiosk illustration">
-    <div class="halo"></div>
-    <div class="kiosk">
-      <div class="kiosk-top"><div class="mini-brand">VOLT<b>DOCK</b></div><span class="led"></span></div>
-      <div class="kiosk-screen"><div class="screen-label">STATION VD-010</div><div class="screen-big">Ready when you are.</div><div class="screen-line"><span>NETWORK STATUS</span><span style="color:#b7ff63">OPTIMAL</span></div><div class="screen-bar"><span></span></div></div>
-      <div class="slot-grid">
-        <div class="mini-slot">100% ⚡</div>
-        <div class="mini-slot">EMPTY</div>
-      </div>
-      <div class="kiosk-bottom"><span>MODULAR BATTERY SYSTEM</span><b>● CONNECTED</b></div>
-    </div>
-    <div class="float-card float-one"><div class="small"><span class="float-icon">ϟ</span>Swap time</div><div class="big">~2 min <span>target</span></div></div>
-    <div class="float-card float-two"><div class="small">Charged batteries ready</div><div class="big"><span id="heroReady" style="font-size:25px;color:var(--green)">01</span> <span>/ 01 pickup slot</span></div></div>
-  </div>
-</section>
 
-<!-- Unified Dashboard -->
-<section class="wrap section" id="dashboard">
-  <div class="section-head"><div><div class="section-kicker">01 / Live Kiosk Network</div><h2>Reserve your battery instantly.</h2></div><p class="section-desc">Select a station and an available slot to generate an OTP for your physical hardware lock.</p></div>
-  <div class="dashboard">
-    <!-- Slot Visualizer -->
-    <div class="panel">
-      <div class="panel-head" style="margin-bottom:12px;">
-        <div>
-          <div class="panel-title">Station Inventory</div>
-          <div class="panel-sub">Select a slot to reserve its battery</div>
+    <div id="bars-row" class="hidden">
+      <div class="bar-group">
+        <span>STAMINA</span>
+        <div class="bar-track"><div id="stamina-fill"></div></div>
+        <span id="stamina-label">READY</span>
+      </div>
+      <div id="emp-status" class="hidden">EMP: READY [F]</div>
+    </div>
+
+    <div id="stage">
+      <canvas id="game" width="900" height="600"></canvas>
+
+      <div id="difficulty-bar">
+        <button type="button" class="diff-btn" data-mode="EASY">EASY</button>
+        <button type="button" class="diff-btn active" data-mode="NORMAL">NORMAL</button>
+        <button type="button" class="diff-btn" data-mode="HARD">HARD</button>
+        <button type="button" class="diff-btn" data-mode="EXPERT">EXPERT</button>
+      </div>
+
+      <div id="qte-overlay">
+        <div id="qte-title">QUICK TIME EVENT</div>
+        <div id="qte-prompt">Hit inside the green zone!</div>
+        <div id="qte-bar-wrap">
+          <div id="qte-target-zone"></div>
+          <div id="qte-needle"></div>
         </div>
-        <div class="live-label"><span class="dot"></span> LIVE SYNC</div>
-      </div>
-      
-      <div class="field" style="margin-bottom: 24px;">
-        <label for="stationSelector">Active Location</label>
-        <select id="stationSelector" onchange="switchStation()">
-          <option value="AR1">Seaside College Campus</option>
-          <option value="AR2">Oil and Gas Station</option>
-        </select>
-      </div>
-
-      <div class="slot-legend"><span class="legend-item"><i class="legend-dot" style="background:var(--green)"></i>Ready</span><span class="legend-item"><i class="legend-dot" style="background:var(--amber)"></i>Charging</span><span class="legend-item"><i class="legend-dot" style="background:var(--cyan)"></i>Reserved</span><span class="legend-item"><i class="legend-dot" style="background:var(--red)"></i>Locked</span><span class="legend-item"><i class="legend-dot" style="background:#52675a"></i>Empty</span></div>
-      
-      <div class="slot-layout" id="slotLayout">
-        <!-- Rendered via JS -->
+        <button type="button" id="qte-action-btn">LOCK IN (SPACE / TAP)</button>
       </div>
     </div>
 
-    <!-- Booking Form -->
-    <div class="panel">
-      <div class="panel-head"><div><div class="panel-title">Slot Booking</div><div class="panel-sub">Generate hardware OTP</div></div><span class="demo-badge">GUEST ACCESS</span></div>
-      <form id="bookingForm">
-        <div class="field" style="margin-bottom: 20px; padding: 12px; background: #0c1410; border: 1px solid #26382e; border-radius: 12px;">
-          <label style="color:#7e9588; margin-bottom:4px;">Currently Selecting</label>
-          <div style="font-size:15px; font-weight:800; color:var(--text)" id="uiSelectedLocation">Seaside College Campus</div>
-          <div style="font-size:13px; color:var(--green)" id="uiSelectedSlot">Slot 01</div>
-        </div>
+    <div id="touch-controls">
+      <div id="joystick-zone">
+        <div id="joystick-knob"></div>
+      </div>
+      <div class="touch-actions">
+        <button type="button" class="action-pill hidden" id="sprint-btn">SPRINT</button>
+        <button type="button" class="action-pill hidden" id="emp-btn">EMP</button>
+        <button type="button" class="action-pill" id="hack-btn">TAP HACK</button>
+      </div>
+    </div>
 
-        <div class="field"><label for="arrivalTime">Estimated arrival</label>
-          <select id="arrivalTime">
-            <option value="10" selected>10 Seconds (Live Demo)</option>
-            <option value="60">In 1 minute</option>
-            <option value="120">In 2 minutes</option>
-            <option value="300">In 5 minutes</option>
-          </select>
-        </div>
-        
-        <button class="btn btn-primary" type="submit" id="btnReserve" style="width:100%; margin-top:10px;">Reserve this slot <span>→</span></button>
-      </form>
-      <div class="result-box" id="bookingResult" aria-live="polite"></div>
+    <div id="controls-hint">
+      Move: <b>WASD / Arrows</b> &nbsp;|&nbsp; Tap Hack: <b>Space / E</b> &nbsp;|&nbsp; Sprint (Hard/Expert): <b>Shift</b> &nbsp;|&nbsp; EMP (Expert): <b>F</b> &nbsp;|&nbsp; Mode: <b>1–4</b>
     </div>
   </div>
-</section>
 
-<!-- Tutorial Section -->
-<section class="wrap section" id="tutorial">
-  <div class="section-head"><div><div class="section-kicker">02 / How it works</div><h2>Simple for riders. Intelligent underneath.</h2></div></div>
-  <div class="dashboard" style="grid-template-columns: 1fr 1fr;">
-    <div class="panel">
-      <div class="panel-head"><div><div class="panel-title">The Rider Journey</div><div class="panel-sub">Designed for quick, guided exchanges</div></div><span style="font-size:22px;color:var(--green)">↗</span></div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #ffffff0a"><div style="width:29px;height:29px;border-radius:9px;background:#1e3024;color:var(--green);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0">01</div><div><b style="display:block;font-size:12px;margin:1px 0 3px">Reserve & Authenticate</b><p style="margin:0;color:#8fa398;font-size:11px;line-height:1.55">Use the dashboard above to select an available battery and generate a 4-digit OTP code.</p></div></div>
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #ffffff0a"><div style="width:29px;height:29px;border-radius:9px;background:#1e3024;color:var(--green);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0">02</div><div><b style="display:block;font-size:12px;margin:1px 0 3px">Deposit</b><p style="margin:0;color:#8fa398;font-size:11px;line-height:1.55">Enter the OTP on the physical kiosk keypad to unlock a compartment and securely lock your current battery.</p></div></div>
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:0"><div style="width:29px;height:29px;border-radius:9px;background:#1e3024;color:var(--green);display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0">03</div><div><b style="display:block;font-size:12px;margin:1px 0 3px">Ride. Return. Repeat.</b><p style="margin:0;color:#8fa398;font-size:11px;line-height:1.55">The system assigns you a fresh battery. Return it to any kiosk later or reclaim your original pack.</p></div></div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div><div class="panel-title">Reservation lifecycle</div><div class="panel-sub">Example policy for a fair queue</div></div><span style="color:var(--cyan);font-size:18px">◷</span></div>
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div style="display:grid;grid-template-columns:80px 18px 1fr;gap:10px;min-height:65px"><div style="font-size:10px;color:#879b8f;padding-top:3px">T − 10 min</div><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px #b7ff6344;z-index:1"></span><span style="width:1px;flex:1;background:#314337"></span></div><div><b style="font-size:12px;display:block">Reservation created</b><p style="font-size:10px;color:#879b8f;margin:4px 0 0">A compatible charged pack is temporarily assigned.</p></div></div>
-        <div style="display:grid;grid-template-columns:80px 18px 1fr;gap:10px;min-height:65px"><div style="font-size:10px;color:#879b8f;padding-top:3px">Arrival</div><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px #b7ff6344;z-index:1"></span><span style="width:1px;flex:1;background:#314337"></span></div><div><b style="font-size:12px;display:block">Rider checks in</b><p style="font-size:10px;color:#879b8f;margin:4px 0 0">Reservation is confirmed at the hardware keypad.</p></div></div>
-        <div style="display:grid;grid-template-columns:80px 18px 1fr;gap:10px;min-height:65px"><div style="font-size:10px;color:#879b8f;padding-top:3px">+10 min</div><div style="display:flex;flex-direction:column;align-items:center"><span style="width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:none;z-index:1"></span><span style="width:1px;flex:1;background:#314337"></span></div><div><b style="font-size:12px;display:block">Grace period ends</b><p style="font-size:10px;color:#879b8f;margin:4px 0 0">If the rider has not checked in, the hold expires and OTP clears.</p></div></div>
-      </div>
-      <div style="border:1px solid #5b4a2c;background:#211b11;border-radius:12px;padding:14px;display:flex;gap:10px;margin-top:14px"><span style="color:var(--amber);font-size:18px">ⓘ</span><p style="font-size:11px;color:#c8b99c;margin:0"><b style="color:#ffdda0">Hardware connection:</b> The dashboard above drives physical door locks on the ESP32 in real-time.</p></div>
-    </div>
-  </div>
-</section>
-</main>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const diffBar = document.getElementById('difficulty-bar');
+    const diffButtons = Array.from(document.querySelectorAll('.diff-btn'));
+    const qteOverlay = document.getElementById('qte-overlay');
+    const qteTitle = document.getElementById('qte-title');
+    const qtePrompt = document.getElementById('qte-prompt');
+    const qteTargetZone = document.getElementById('qte-target-zone');
+    const qteNeedle = document.getElementById('qte-needle');
+    const qteActionBtn = document.getElementById('qte-action-btn');
 
-<footer class="footer" style="border-top:1px solid #ffffff10;padding:30px 0 36px;color:#7f9287;font-size:11px"><div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:20px"><div class="brand"><span class="brandmark" style="width:29px;height:29px;border-radius:9px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg></span><span>volt<em>dock</em></span></div><div>VoltDock dual-slot prototype · Connected with Firebase Realtime DB</div><div><strong style="color:#c6d7cb">Authenticated Mode</strong> · Hardware Integration active</div></div></footer>
+    const MODES = {
+      EASY: {
+        label: 'EASY',
+        timeLimit: 75.0,
+        baseSpeed: 245,
+        hasSprint: false,
+        sprintMultiplier: 1.0,
+        sprintDuration: 2.5,
+        sprintCooldown: 7.0,
+        sentinelSpeed: 105,
+        speedEscalation: 22,
+        visionRange: 180,
+        visionHalfAngle: 0.34,
+        hackTapGain: 15,
+        qteCount: 1,
+        exposureRate: 2.3,
+        expert: false
+      },
+      NORMAL: {
+        label: 'NORMAL',
+        timeLimit: 60.0,
+        baseSpeed: 230,
+        hasSprint: false,
+        sprintMultiplier: 1.0,
+        sprintDuration: 2.5,
+        sprintCooldown: 7.0,
+        sentinelSpeed: 135,
+        speedEscalation: 32,
+        visionRange: 210,
+        visionHalfAngle: 0.42,
+        hackTapGain: 13,
+        qteCount: 1,
+        exposureRate: 3.2,
+        expert: false
+      },
+      HARD: {
+        label: 'HARD',
+        timeLimit: 55.0,
+        baseSpeed: 232,
+        hasSprint: true,
+        sprintMultiplier: 1.45,
+        sprintDuration: 2.5,
+        sprintCooldown: 7.0,
+        sentinelSpeed: 168,
+        speedEscalation: 42,
+        visionRange: 245,
+        visionHalfAngle: 0.50,
+        hackTapGain: 11,
+        qteCount: 2,
+        exposureRate: 4.5,
+        expert: false
+      },
+      EXPERT: {
+        label: 'EXPERT',
+        timeLimit: 65.0,
+        baseSpeed: 202,
+        hasSprint: true,
+        sprintMultiplier: 1.55,
+        sprintDuration: 2.5,
+        sprintCooldown: 7.0,
+        sentinelSpeed: 192,
+        speedEscalation: 26,
+        visionRange: 230,
+        visionHalfAngle: 0.46,
+        hackTapGain: 11.5,
+        qteCount: 2,
+        exposureRate: 4.8,
+        expert: true
+      }
+    };
 
-<div class="toast" id="toast" role="status" aria-live="polite"><b id="toastTitle">Done</b><span id="toastMessage"></span></div>
+    // In-memory best time remaining per mode (resets back to 0.00s on page refresh)
+    const bestTimes = {
+      EASY: 0,
+      NORMAL: 0,
+      HARD: 0,
+      EXPERT: 0
+    };
 
-<!-- Auth Modal -->
-<div class="modal-backdrop" id="authModalBackdrop" role="dialog" aria-modal="true">
-  <div class="modal" style="max-width: 400px;">
-    <div class="modal-head">
-      <h3 id="authModalTitle">Sign In</h3>
-      <button class="close" onclick="closeAuthModal()" aria-label="Close auth dialog">×</button>
-    </div>
-    <p>Access the VoltDock testing network to reserve hardware slots.</p>
-    <div class="field">
-      <label for="authEmail">Email Address</label>
-      <input type="email" id="authEmail" value="voltdocktest@gmail.com">
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label for="authPassword">Password</label>
-      <input type="password" id="authPassword" value="voltdock123">
-    </div>
-    <div class="modal-actions" style="margin-top:24px">
-      <button class="btn btn-ghost" onclick="closeAuthModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="executeAuth()">Sign In / Register →</button>
-    </div>
-  </div>
-</div>
+    let selectedMode = 'NORMAL';
 
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyDE_w2v_V1Dl97KBOs2nPQU_VNQytRSHLI",
-    authDomain: "voltdock-6f4a5.firebaseapp.com",
-    databaseURL: "https://voltdock-6f4a5-default-rtdb.firebaseio.com",
-    projectId: "voltdock-6f4a5",
-    storageBucket: "voltdock-6f4a5.firebasestorage.app",
-    messagingSenderId: "981267242573",
-    appId: "1:981267242573:web:03b1b946ebf4a3cca20604"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const rtdb = firebase.database();
-  const auth = firebase.auth();
-
-  function toast(title,message){const t=document.getElementById('toast');document.getElementById('toastTitle').textContent=title;document.getElementById('toastMessage').textContent=message;t.classList.add('show');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.classList.remove('show'),3800)}
-  function scrollToSection(id){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
-
-  // Auth Logic
-  let pendingAuthResolve = null;
-  auth.onAuthStateChanged(user => {
-    const navAuth = document.getElementById('navAuthContainer');
-    if (user) {
-      const displayEmail = user.email.split('@')[0];
-      navAuth.innerHTML = `<div class="auth-pill" title="${user.email}">👤 ${displayEmail}</div><button class="btn btn-ghost btn-small" onclick="logoutUser()">Sign Out</button>`;
-      if (pendingAuthResolve) { pendingAuthResolve(user); pendingAuthResolve = null; }
-    } else {
-      navAuth.innerHTML = `<button class="btn btn-primary btn-small" onclick="openAuthModal()" style="min-width:80px">Sign In</button>`;
+    function setDifficulty(modeKey) {
+      if (!MODES[modeKey]) return;
+      selectedMode = modeKey;
+      diffButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === modeKey));
+      if (state && state.status === 'START') resetGame();
     }
-  });
 
-  function openAuthModal() { document.getElementById('authModalBackdrop').classList.add('show'); }
-  function closeAuthModal() { document.getElementById('authModalBackdrop').classList.remove('show'); if (pendingAuthResolve) { pendingAuthResolve(null); pendingAuthResolve = null; } }
-  function logoutUser() { auth.signOut().then(() => toast('Signed out', 'You have securely logged out of the demo.')); }
-  async function executeAuth() {
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    if (!email || password.length < 6) return alert("Please enter valid credentials (min 6 char password).");
-    try {
-      await auth.signInWithEmailAndPassword(email, password);
-      closeAuthModal(); toast('Welcome back', 'Signed in successfully.');
-    } catch (err) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        try { await auth.createUserWithEmailAndPassword(email, password); closeAuthModal(); toast('Account Created', 'Successfully registered and signed in.'); } 
-        catch (createErr) { alert("Auth Error: " + createErr.message); }
-      } else { alert("Auth Error: " + err.message); }
-    }
-  }
-  async function ensureAuthenticatedUser() {
-    if (auth.currentUser) return auth.currentUser;
-    openAuthModal();
-    return new Promise((resolve) => { pendingAuthResolve = resolve; });
-  }
-
-  // Multi-Station / Multi-Slot State Management (Updated to AR1 and AR2)
-  let stationData = {
-    'AR1': { name: 'Seaside College Campus', slots: { 1: { state: 'ready', charge: 100 }, 2: { state: 'empty', charge: 0 } } },
-    'AR2': { name: 'Oil and Gas Station', slots: { 1: { state: 'ready', charge: 85 }, 2: { state: 'charging', charge: 20 } } }
-  };
-  let activeStationId = 'AR1';
-  let selectedSlotId = 1;
-  let countdownInterval;
-  let penaltyActive = false;
-
-  function slotStateLabel(state) { return ({ready:'READY', empty:'EMPTY', charging:'CHARGING', reserved:'RESERVED', locked:'LOCKED'})[state] || state.toUpperCase(); }
-  function getChargeDisplay(charge, state) { return (state === 'empty') ? '—' : `${charge}<span>%</span> ⚡`; }
-
-  function renderSlots() {
-    const host = document.getElementById('slotLayout');
-    const slots = stationData[activeStationId].slots;
-    
-    host.innerHTML = [1, 2].map(id => {
-      const s = slots[id];
-      const isSelected = selectedSlotId === id;
-      return `<div class="slot ${s.state} ${isSelected ? 'selected' : ''}" onclick="selectSlot(${id})">
-        <span class="slot-num">SLOT 0${id}</span>
-        <div class="slot-charge">${getChargeDisplay(s.charge, s.state)}</div>
-        <span class="slot-name">${(s.state==='ready')?'Available Battery':(s.state==='empty')?'Vacant Bay':'Unavailable'}</span>
-        <span class="slot-state">${slotStateLabel(s.state)}</span>
-      </div>`;
-    }).join('');
-    
-    document.getElementById('uiSelectedLocation').innerText = stationData[activeStationId].name;
-    document.getElementById('uiSelectedSlot').innerText = `Slot 0${selectedSlotId}`;
-  }
-
-  function switchStation() {
-    activeStationId = document.getElementById('stationSelector').value;
-    selectedSlotId = 1;
-    renderSlots();
-  }
-
-  function selectSlot(id) {
-    selectedSlotId = id;
-    renderSlots();
-  }
-
-  // Slot-Specific Database Listeners
-  ['AR1', 'AR2'].forEach(st => {
-    [1, 2].forEach(slotId => {
-      rtdb.ref(`locks/${st}/slot${slotId}`).on('value', snapshot => {
-        const data = snapshot.val();
-        if(!data) return;
-
-        let uiSlot = stationData[st].slots[slotId];
-        
-        // Match UI directly to database reservation states
-        if (data.status === 'RESERVED') {
-          uiSlot.state = 'reserved';
-        } else if (data.status === 'LOCKED') {
-          uiSlot.state = 'locked';  // <-- This triggers the red styling!
-        } else if (data.status === 'EXPIRED') {
-           uiSlot.state = (data.chargeLevel > 0) ? 'ready' : 'empty';
-        } else if (data.status === 'READY') {
-           uiSlot.state = 'ready';
-        } else if (data.status === 'EMPTY') {
-           uiSlot.state = 'empty';
-        }
-
-        // If OTP clears but it was reserved (Physical keypad used)
-        if (data.status === 'RESERVED' && (!data.otp || data.otp === "")) {
-          uiSlot.state = 'empty';
-          if (st === activeStationId && selectedSlotId === slotId && document.getElementById('bookingResult').classList.contains('show')) {
-            clearInterval(countdownInterval);
-            document.getElementById('bookingResult').innerHTML = `<div class="result-title" style="color:var(--green)">✓ Access Granted!</div><div class="result-copy">ESP32 Keypad authentication successful. Battery removed.</div>`;
-          }
-        }
-        
-        if (st === activeStationId) renderSlots();
+    diffButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setDifficulty(btn.dataset.mode);
       });
     });
-  });
 
-  document.getElementById('bookingForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    if (penaltyActive) return toast('Penalty active', 'Wait for cooldown.');
-    
-    const slotData = stationData[activeStationId].slots[selectedSlotId];
-    const result = document.getElementById('bookingResult');
-
-    if (slotData.state !== 'ready') {
-      result.innerHTML = `<div class="result-title" style="color:var(--amber)">⚠ Slot Unavailable</div><div class="result-copy">Please select a slot that has a ready battery.</div>`;
-      result.classList.add('show');
-      return;
+    // --- ASSETS ---
+    function loadAsset(src, removeBlack = false) {
+      const img = new Image();
+      img.loaded = false;
+      img.needsScreenBlend = false;
+      img.onload = () => {
+        if (!removeBlack) {
+          img.loaded = true;
+          return;
+        }
+        try {
+          const off = document.createElement('canvas');
+          off.width = img.width;
+          off.height = img.height;
+          const octx = off.getContext('2d');
+          octx.drawImage(img, 0, 0);
+          const frame = octx.getImageData(0, 0, off.width, off.height);
+          const d = frame.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const b = Math.max(d[i], d[i + 1], d[i + 2]);
+            if (b < 28) d[i + 3] = 0;
+            else if (b < 55) d[i + 3] = Math.round(((b - 28) / 27) * 255);
+          }
+          octx.putImageData(frame, 0, 0);
+          img.processed = off;
+        } catch (err) {
+          img.needsScreenBlend = true;
+        }
+        img.loaded = true;
+      };
+      img.src = src;
+      return img;
     }
 
-    const secs = Number(document.getElementById('arrivalTime').value);
+    const assets = {
+      floor: loadAsset('./assets/floor.png', false),
+      player: loadAsset('./assets/player.png', true),
+      sentinel: loadAsset('./assets/sentinel.png', true)
+    };
 
-    try {
-      const authenticatedUser = await ensureAuthenticatedUser();
-      if (!authenticatedUser) return;
-
-      const generatedOTP = Math.floor(1000 + Math.random() * 9000).toString();
-
-      await rtdb.ref(`locks/${activeStationId}/slot${selectedSlotId}`).update({
-        reservedBy: authenticatedUser.email,
-        otp: generatedOTP,
-        status: "RESERVED",
-        chargeLevel: slotData.charge,
-        timestamp: Date.now()
-      });
-
-      startBookingTimer(activeStationId, selectedSlotId, secs);
-      
-      result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Slot 0${selectedSlotId} Reserved</div><div class="result-copy">OTP: <b style="font-size:22px;color:white;letter-spacing:2px;display:block;margin:6px 0">${generatedOTP}</b>Hurry! <span id="liveTimer" style="color:var(--amber);font-weight:bold;"></span> remaining.</div>`;
-      result.classList.add('show');
-    } catch (error) {
-      console.error("Booking error:", error);
+    // --- AUDIO ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function ensureAudio() {
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     }
-  });
+    function playTone(freq, type, duration, vol = 0.08, endFreq = null) {
+      ensureAudio();
+      if (audioCtx.state !== 'running') return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      if (endFreq !== null) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), now + duration);
+      }
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    }
 
-  function startBookingTimer(stationId, slotId, duration) {
-    let timer = duration;
-    clearInterval(countdownInterval);
-    
-    countdownInterval = setInterval(function () {
-      let m = parseInt(timer / 60, 10);
-      let s = parseInt(timer % 60, 10);
-      let timerDisplay = document.getElementById("liveTimer");
-      
-      if (timerDisplay) {
-          timerDisplay.innerText = m + ":" + (s < 10 ? "0" : "") + s;
+    let bumpCooldown = 0;
+    function playWallBump() {
+      if (bumpCooldown > 0) return;
+      bumpCooldown = 0.22;
+      playTone(115, 'sine', 0.09, 0.14, 42);
+    }
+
+    let heartbeatTimer = 0;
+    function updateChaseHeartbeat(dt, tension) {
+      if (!state || state.status !== 'PLAYING' || tension <= 0.15) {
+        heartbeatTimer = 0;
+        return;
+      }
+      heartbeatTimer -= dt;
+      if (heartbeatTimer <= 0) {
+        const interval = Math.max(0.24, 0.85 - tension * 0.61);
+        heartbeatTimer = interval;
+        const vol = 0.04 + tension * 0.13;
+        playTone(62, 'sine', 0.08, vol, 36);
+        setTimeout(() => {
+          if (state && state.status === 'PLAYING') {
+            playTone(74, 'sine', 0.07, vol * 0.75, 40);
+          }
+        }, 110);
+      }
+    }
+
+    // --- FLOOR GEOMETRY (F1 & F2) ---
+    const FLOOR_LAYOUTS = {
+      1: {
+        walls: [
+          { x: 180, y: 120, w: 140, h: 40 },
+          { x: 580, y: 120, w: 140, h: 40 },
+          { x: 380, y: 240, w: 140, h: 120 },
+          { x: 180, y: 440, w: 140, h: 40 },
+          { x: 580, y: 440, w: 140, h: 40 }
+        ],
+        hidingSpots: [
+          { x: 115, y: 120, w: 58, h: 52 },
+          { x: 730, y: 430, w: 58, h: 52 }
+        ],
+        shaft: { x: 420, y: 485, w: 60, h: 60, targetFloor: 2 },
+        waypoints: [
+          { x: 450, y: 80 },
+          { x: 780, y: 80 },
+          { x: 780, y: 520 },
+          { x: 450, y: 520 },
+          { x: 220, y: 300 }
+        ]
+      },
+      2: {
+        walls: [
+          { x: 160, y: 140, w: 170, h: 45 },
+          { x: 570, y: 140, w: 170, h: 45 },
+          { x: 240, y: 275, w: 120, h: 50 },
+          { x: 540, y: 275, w: 120, h: 50 },
+          { x: 160, y: 415, w: 170, h: 45 },
+          { x: 570, y: 415, w: 170, h: 45 }
+        ],
+        hidingSpots: [
+          { x: 100, y: 274, w: 58, h: 52 },
+          { x: 742, y: 274, w: 58, h: 52 }
+        ],
+        shaft: { x: 420, y: 485, w: 60, h: 60, targetFloor: 1 },
+        waypoints: [
+          { x: 240, y: 85 },
+          { x: 660, y: 85 },
+          { x: 790, y: 300 },
+          { x: 660, y: 520 },
+          { x: 240, y: 520 },
+          { x: 115, y: 300 }
+        ]
+      }
+    };
+
+    function getWallsForFloor(fl) {
+      return FLOOR_LAYOUTS[fl].walls;
+    }
+
+    // --- INPUTS ---
+    const keys = {};
+    const touchInput = { vx: 0, vy: 0, sprinting: false };
+    let qteState = null;
+
+    function triggerHackTap() {
+      if (!state || state.status !== 'PLAYING' || qteState) return;
+      const cfg = MODES[selectedMode];
+      const p = state.player;
+
+      for (const t of state.terminals) {
+        if (t.hacked || t.floor !== state.playerFloor) continue;
+        const dist = Math.hypot(p.x - t.x, p.y - t.y);
+        if (dist < 48) {
+          t.progress = Math.min(100, t.progress + cfg.hackTapGain);
+          t.idleTime = 0;
+          playTone(420 + t.progress * 4.5, 'triangle', 0.055, 0.06);
+
+          if (cfg.qteCount === 1) {
+            if (t.progress >= 55 && !t.qte1Done) {
+              t.qte1Done = true;
+              startQTE('HACK SECURITY CHECK', 'Hit LOCK IN inside the green zone!', t, false);
+              return;
+            }
+          } else {
+            if (t.progress >= 45 && !t.qte1Done) {
+              t.qte1Done = true;
+              startQTE('HACK SECURITY CHECK', 'Hit LOCK IN inside the green zone!', t, false);
+              return;
+            }
+            if (t.progress >= 80 && !t.qte2Done) {
+              t.qte2Done = true;
+              startQTE('FIREWALL OVERRIDE QTE', 'Hit LOCK IN inside the green zone!', t, false);
+              return;
+            }
+          }
+
+          if (t.progress >= 100) {
+            completeTerminal(t);
+          }
+          return;
+        }
+      }
+    }
+
+    function deployEmpTrap() {
+      if (!state || state.status !== 'PLAYING' || qteState) return;
+      if (!MODES[selectedMode].expert || !state.empAvailable) return;
+      state.empAvailable = false;
+      state.empTrap = {
+        x: state.player.x,
+        y: state.player.y,
+        floor: state.playerFloor,
+        armedTimer: 1.6
+      };
+      playTone(620, 'square', 0.14, 0.08, 280);
+    }
+
+    function startQTE(title, prompt, targetTerminal, isSelfStun) {
+      qteState = {
+        title,
+        prompt,
+        targetTerminal,
+        isSelfStun,
+        pos: 0,
+        dir: 1,
+        speed: 1.5,
+        zoneStart: 0.36 + Math.random() * 0.24,
+        zoneWidth: 0.25,
+        timeLeft: 1.9
+      };
+      qteTitle.textContent = title;
+      qtePrompt.textContent = prompt;
+      qteTargetZone.style.left = `${qteState.zoneStart * 100}%`;
+      qteTargetZone.style.width = `${qteState.zoneWidth * 100}%`;
+      qteOverlay.classList.add('visible');
+      playTone(700, 'sine', 0.08, 0.08);
+    }
+
+    function resolveQTE(hitSuccess) {
+      if (!qteState) return;
+      const currentQte = qteState;
+      qteState = null;
+      qteOverlay.classList.remove('visible');
+
+      if (hitSuccess) {
+        playTone(920, 'sine', 0.18, 0.1);
+        if (!currentQte.isSelfStun && currentQte.targetTerminal && currentQte.targetTerminal.progress >= 100) {
+          completeTerminal(currentQte.targetTerminal);
+        }
+        return;
       }
 
-      if (--timer < 0) {
-        clearInterval(countdownInterval);
-        applyPenalty(stationId, slotId);
+      playTone(170, 'sawtooth', 0.3, 0.14, 70);
+      if (currentQte.isSelfStun) {
+        alertSentinelTo(state.player.x, state.player.y, state.playerFloor);
+      } else if (currentQte.targetTerminal) {
+        const term = currentQte.targetTerminal;
+        term.progress = Math.max(0, term.progress - 20);
+        alertSentinelTo(term.x, term.y, term.floor);
       }
-    }, 1000);
-  }
+    }
 
-  function applyPenalty(stationId, slotId) {
-    penaltyActive = true;
-    rtdb.ref(`locks/${stationId}/slot${slotId}`).update({ otp: "", status: "EXPIRED" });
-    
-    const result = document.getElementById('bookingResult');
-    result.innerHTML = `<div class="result-title" style="color:var(--red)">⚠ Reservation Expired</div><div class="result-copy">You didn't reach on time. OTP wiped.</div>`;
-    
-    // Cooldown reduced from 5 minutes (300000ms) to 5 seconds (5000ms) for testing
-    setTimeout(() => {
-      penaltyActive = false;
-      if(result.innerHTML && result.innerHTML.includes("Expired")) {
-         result.innerHTML = `<div class="result-title" style="color:var(--green)">✓ Penalty Cleared</div><div class="result-copy">You can book a slot again.</div>`;
+    function alertSentinelTo(x, y, floor) {
+      const s = state.sentinel;
+      s.alertTarget = { x, y, floor, checkTimer: 0 };
+      s.stunTimer = 0;
+      playTone(320, 'sawtooth', 0.25, 0.12, 540);
+    }
+
+    function completeTerminal(t) {
+      t.hacked = true;
+      t.progress = 100;
+      playTone(880, 'sine', 0.25, 0.12);
+      state.sentinel.speed += MODES[selectedMode].speedEscalation;
+      state.sentinel.visionRange += 20;
+
+      if (MODES[selectedMode].expert && t.floor === 2) {
+        alertSentinelTo(t.x, t.y, 2);
       }
-    }, 5000); 
-  }
 
-  // Init
-  renderSlots();
-</script>
+      const totalRequired = state.terminals.length;
+      const doneCount = state.terminals.filter(item => item.hacked).length;
+      if (doneCount === totalRequired && !state.exit.active) {
+        state.exit.active = true;
+        playTone(1046, 'sine', 0.35, 0.12);
+      }
+    }
+
+    qteActionBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!qteState) return;
+      const inZone = qteState.pos >= qteState.zoneStart && qteState.pos <= (qteState.zoneStart + qteState.zoneWidth);
+      resolveQTE(inZone);
+    });
+
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') touchInput.sprinting = true;
+
+      if (qteState) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE') {
+          e.preventDefault();
+          const inZone = qteState.pos >= qteState.zoneStart && qteState.pos <= (qteState.zoneStart + qteState.zoneWidth);
+          resolveQTE(inZone);
+        }
+        return;
+      }
+
+      if (state && state.status === 'START') {
+        if (e.code === 'Digit1') setDifficulty('EASY');
+        if (e.code === 'Digit2') setDifficulty('NORMAL');
+        if (e.code === 'Digit3') setDifficulty('HARD');
+        if (e.code === 'Digit4') setDifficulty('EXPERT');
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          startGame();
+        }
+      } else if (state && state.status === 'PLAYING') {
+        if (e.code === 'Space' || e.code === 'KeyE') {
+          e.preventDefault();
+          triggerHackTap();
+        }
+        if (e.code === 'KeyF') {
+          deployEmpTrap();
+        }
+      } else if (state && state.status !== 'PLAYING' && e.code === 'KeyR') {
+        resetGame();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      keys[e.code] = false;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') touchInput.sprinting = false;
+    });
+
+    // Touch controls
+    const joyZone = document.getElementById('joystick-zone');
+    const joyKnob = document.getElementById('joystick-knob');
+    let activeJoyTouchId = null;
+    const maxKnobOffset = 28;
+
+    function resetJoystick() {
+      activeJoyTouchId = null;
+      touchInput.vx = 0;
+      touchInput.vy = 0;
+      joyKnob.style.transform = 'translate(0px, 0px)';
+    }
+
+    function updateJoystickFromPoint(clientX, clientY) {
+      const rect = joyZone.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > maxKnobOffset) {
+        dx = (dx / dist) * maxKnobOffset;
+        dy = (dy / dist) * maxKnobOffset;
+      }
+      joyKnob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      touchInput.vx = dist > 6 ? dx / maxKnobOffset : 0;
+      touchInput.vy = dist > 6 ? dy / maxKnobOffset : 0;
+    }
+
+    joyZone.addEventListener('touchstart', e => {
+      e.preventDefault();
+      ensureAudio();
+      const t = e.changedTouches[0];
+      activeJoyTouchId = t.identifier;
+      updateJoystickFromPoint(t.clientX, t.clientY);
+    }, { passive: false });
+
+    joyZone.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier === activeJoyTouchId) updateJoystickFromPoint(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    joyZone.addEventListener('touchend', e => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === activeJoyTouchId) resetJoystick();
+      }
+    });
+    joyZone.addEventListener('touchcancel', resetJoystick);
+
+    const sprintBtn = document.getElementById('sprint-btn');
+    sprintBtn.addEventListener('touchstart', e => { e.preventDefault(); touchInput.sprinting = true; }, { passive: false });
+    sprintBtn.addEventListener('touchend', () => { touchInput.sprinting = false; });
+    sprintBtn.addEventListener('touchcancel', () => { touchInput.sprinting = false; });
+
+    document.getElementById('hack-btn').addEventListener('touchstart', e => {
+      e.preventDefault();
+      ensureAudio();
+      triggerHackTap();
+    }, { passive: false });
+
+    document.getElementById('emp-btn').addEventListener('touchstart', e => {
+      e.preventDefault();
+      ensureAudio();
+      deployEmpTrap();
+    }, { passive: false });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      ensureAudio();
+      if (!state) return;
+      if (state.status === 'START') {
+        startGame();
+      } else if (state.status !== 'PLAYING') {
+        resetGame();
+      } else if (state.status === 'PLAYING' && !qteState) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = ((e.clientX - rect.left) / rect.width) * canvas.width;
+        const cy = ((e.clientY - rect.top) / rect.height) * canvas.height;
+        const nearTerminal = state.terminals.some(
+          t => !t.hacked && t.floor === state.playerFloor && Math.hypot(t.x - cx, t.y - cy) < 55
+        );
+        if (nearTerminal) triggerHackTap();
+      }
+    });
+
+    // --- MINE PLACEMENT GUARD ---
+    function canPlaceMineAt(x, y, floor) {
+      for (const t of state.terminals) {
+        if (t.floor === floor && Math.hypot(x - t.x, y - t.y) < 82) return false;
+      }
+      if (floor === state.exit.floor) {
+        const exCx = state.exit.x + state.exit.w / 2;
+        const exCy = state.exit.y + state.exit.h / 2;
+        if (Math.hypot(x - exCx, y - exCy) < 85) return false;
+      }
+      const sh = FLOOR_LAYOUTS[floor].shaft;
+      const shCx = sh.x + sh.w / 2;
+      const shCy = sh.y + sh.h / 2;
+      if (Math.hypot(x - shCx, y - shCy) < 70) return false;
+
+      for (const m of state.mines) {
+        if (m.floor === floor && Math.hypot(x - m.x, y - m.y) < 55) return false;
+      }
+      return true;
+    }
+
+    // --- GAME STATE ---
+    let state;
+    function resetGame() {
+      const cfg = MODES[selectedMode];
+      const terminals = [
+        { x: 250, y: 70, floor: 1, progress: 0, hacked: false, idleTime: 0, qte1Done: false, qte2Done: false },
+        { x: 650, y: 530, floor: 1, progress: 0, hacked: false, idleTime: 0, qte1Done: false, qte2Done: false },
+        { x: 820, y: 300, floor: 1, progress: 0, hacked: false, idleTime: 0, qte1Done: false, qte2Done: false }
+      ];
+      if (cfg.expert) {
+        terminals.push(
+          { x: 245, y: 88, floor: 2, progress: 0, hacked: false, idleTime: 0, qte1Done: false, qte2Done: false },
+          { x: 655, y: 515, floor: 2, progress: 0, hacked: false, idleTime: 0, qte1Done: false, qte2Done: false }
+        );
+      }
+
+      const f1Wp = FLOOR_LAYOUTS[1].waypoints;
+      state = {
+        status: 'START',
+        loseReason: '',
+        isNewBest: false,
+        timeLeft: cfg.timeLimit,
+        lastMoveAngle: 0,
+        playerFloor: 1,
+        shaftCooldown: 0,
+        hiding: false,
+        staminaTimeLeft: cfg.sprintDuration,
+        sprintCooldownLeft: 0,
+        isSprinting: false,
+        empAvailable: cfg.expert,
+        empTrap: null,
+        mines: [],
+        mineDropTimer: 3.2,
+        player: { x: 75, y: 300, r: 14, exposure: 0 },
+        terminals,
+        exit: { x: 40, y: 250, w: 50, h: 100, floor: 1, active: false },
+        sentinel: {
+          x: f1Wp[0].x,
+          y: f1Wp[0].y,
+          r: 16,
+          floor: 1,
+          angle: 0,
+          speed: cfg.sentinelSpeed,
+          visionRange: cfg.visionRange,
+          visionHalfAngle: cfg.visionHalfAngle,
+          waypoints: f1Wp,
+          wpIndex: 1,
+          floorTransitionTimer: 0,
+          targetFloor: null,
+          alertTarget: null,
+          stunTimer: 0
+        }
+      };
+
+      document.getElementById('bars-row').classList.toggle('hidden', !cfg.hasSprint && !cfg.expert);
+      document.getElementById('emp-status').classList.toggle('hidden', !cfg.expert);
+      sprintBtn.classList.toggle('hidden', !cfg.hasSprint);
+      document.getElementById('emp-btn').classList.toggle('hidden', !cfg.expert);
+
+      qteState = null;
+      qteOverlay.classList.remove('visible');
+      diffBar.classList.remove('hidden');
+      updateHUD();
+    }
+
+    function startGame() {
+      ensureAudio();
+      state.status = 'PLAYING';
+      diffBar.classList.add('hidden');
+      playTone(520, 'sine', 0.15);
+    }
+
+    function circleRectCollide(cx, cy, cr, rect) {
+      const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.w));
+      const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.h));
+      const dx = cx - closestX;
+      const dy = cy - closestY;
+      return (dx * dx + dy * dy) < (cr * cr);
+    }
+
+    function pointInRect(px, py, rect) {
+      return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+    }
+
+    // Require at least 80% of the player's circular body inside a hiding spot
+    function isPlayerHidden(p, hidingSpots) {
+      for (const spot of hidingSpots) {
+        let totalSamples = 0;
+        let insideSamples = 0;
+        const step = p.r / 4;
+        for (let dx = -p.r; dx <= p.r; dx += step) {
+          for (let dy = -p.r; dy <= p.r; dy += step) {
+            if (dx * dx + dy * dy <= p.r * p.r) {
+              totalSamples++;
+              if (pointInRect(p.x + dx, p.y + dy, spot)) {
+                insideSamples++;
+              }
+            }
+          }
+        }
+        if (totalSamples > 0 && (insideSamples / totalSamples) >= 0.80) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function hasLineOfSight(x1, y1, x2, y2, floor) {
+      const dist = Math.hypot(x2 - x1, y2 - y1);
+      const steps = Math.ceil(dist / 8);
+      const activeWalls = getWallsForFloor(floor);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const px = x1 + (x2 - x1) * t;
+        const py = y1 + (y2 - y1) * t;
+        if (activeWalls.some(w => pointInRect(px, py, w))) return false;
+      }
+      return true;
+    }
+
+    function moveTowards(entity, tx, ty, speed, dt) {
+      const dx = tx - entity.x;
+      const dy = ty - entity.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) return 0;
+      entity.angle = Math.atan2(dy, dx);
+      const step = Math.min(dist, speed * dt);
+      entity.x += Math.cos(entity.angle) * step;
+      entity.y += Math.sin(entity.angle) * step;
+      return dist - step;
+    }
+
+    function beginFloorTransition(s, nextFloor) {
+      s.targetFloor = nextFloor;
+      s.floorTransitionTimer = 1.3;
+    }
+
+    function update(dt) {
+      if (bumpCooldown > 0) bumpCooldown = Math.max(0, bumpCooldown - dt);
+      if (!state || state.status !== 'PLAYING') {
+        updateChaseHeartbeat(dt, 0);
+        return;
+      }
+
+      if (qteState) {
+        qteState.pos += qteState.dir * qteState.speed * dt;
+        if (qteState.pos >= 1) { qteState.pos = 1; qteState.dir = -1; }
+        if (qteState.pos <= 0) { qteState.pos = 0; qteState.dir = 1; }
+        qteNeedle.style.left = `${qteState.pos * 100}%`;
+        qteState.timeLeft -= dt;
+        if (qteState.timeLeft <= 0) {
+          resolveQTE(false);
+        }
+        updateChaseHeartbeat(dt, 0.9);
+        return;
+      }
+
+      const cfg = MODES[selectedMode];
+
+      // 1. Timer
+      state.timeLeft = Math.max(0, state.timeLeft - dt);
+      if (state.timeLeft === 0) {
+        endGame('LOST', 'DEADLINE EXPIRED — SYSTEM LOCKDOWN');
+        return;
+      }
+
+      // 2. Stamina & Sprint (Hard & Expert only)
+      let vx = touchInput.vx;
+      let vy = touchInput.vy;
+      if (keys['KeyW'] || keys['ArrowUp']) vy -= 1;
+      if (keys['KeyS'] || keys['ArrowDown']) vy += 1;
+      if (keys['KeyA'] || keys['ArrowLeft']) vx -= 1;
+      if (keys['KeyD'] || keys['ArrowRight']) vx += 1;
+      const mag = Math.hypot(vx, vy);
+
+      if (cfg.hasSprint) {
+        const wantsSprint = touchInput.sprinting || keys['ShiftLeft'] || keys['ShiftRight'];
+        if (state.sprintCooldownLeft > 0) {
+          state.sprintCooldownLeft = Math.max(0, state.sprintCooldownLeft - dt);
+          state.isSprinting = false;
+          if (state.sprintCooldownLeft === 0) {
+            state.staminaTimeLeft = cfg.sprintDuration;
+          }
+        } else if (wantsSprint && mag > 0.05 && state.staminaTimeLeft > 0) {
+          state.isSprinting = true;
+          state.staminaTimeLeft = Math.max(0, state.staminaTimeLeft - dt);
+          if (state.staminaTimeLeft === 0) {
+            state.isSprinting = false;
+            state.sprintCooldownLeft = cfg.sprintCooldown;
+          }
+        } else {
+          state.isSprinting = false;
+          if (state.staminaTimeLeft < cfg.sprintDuration) {
+            state.staminaTimeLeft = Math.min(cfg.sprintDuration, state.staminaTimeLeft + dt * 0.55);
+          }
+        }
+      } else {
+        state.isSprinting = false;
+      }
+
+      // 3. Player Movement
+      const p = state.player;
+      const currentSpeed = cfg.baseSpeed * (state.isSprinting ? cfg.sprintMultiplier : 1);
+      const activeWalls = getWallsForFloor(state.playerFloor);
+
+      if (mag > 0.05) {
+        const norm = Math.min(1, mag);
+        state.lastMoveAngle = Math.atan2(vy, vx);
+        const stepX = (vx / mag) * norm * currentSpeed * dt;
+        const stepY = (vy / mag) * norm * currentSpeed * dt;
+
+        let hitBarrier = false;
+        const nextX = Math.max(p.r, Math.min(canvas.width - p.r, p.x + stepX));
+        if (nextX !== p.x + stepX) hitBarrier = true;
+        if (!activeWalls.some(w => circleRectCollide(nextX, p.y, p.r, w))) {
+          p.x = nextX;
+        } else {
+          hitBarrier = true;
+        }
+
+        const nextY = Math.max(p.r, Math.min(canvas.height - p.r, p.y + stepY));
+        if (nextY !== p.y + stepY) hitBarrier = true;
+        if (!activeWalls.some(w => circleRectCollide(p.x, nextY, p.r, w))) {
+          p.y = nextY;
+        } else {
+          hitBarrier = true;
+        }
+
+        if (hitBarrier) playWallBump();
+      }
+
+      // 80% body-inside hiding spot check
+      state.hiding = cfg.expert && isPlayerHidden(p, FLOOR_LAYOUTS[state.playerFloor].hidingSpots);
+
+      // Expert floor shaft
+      if (state.shaftCooldown > 0) state.shaftCooldown = Math.max(0, state.shaftCooldown - dt);
+      if (cfg.expert && state.shaftCooldown === 0) {
+        const shaft = FLOOR_LAYOUTS[state.playerFloor].shaft;
+        if (pointInRect(p.x, p.y, shaft)) {
+          state.playerFloor = shaft.targetFloor;
+          state.shaftCooldown = 1.4;
+          playTone(360, 'sine', 0.16, 0.09, 540);
+        }
+      }
+
+      // 4. Terminal Decay if left < 30% too long on Expert
+      for (const t of state.terminals) {
+        if (t.hacked || t.progress <= 0) continue;
+        t.idleTime += dt;
+        if (cfg.expert && t.progress < 30 && t.idleTime > 4.2) {
+          t.progress = 0;
+          t.idleTime = 0;
+          playTone(210, 'sawtooth', 0.22, 0.09, 110);
+        } else if (t.idleTime > 6.5) {
+          t.progress = Math.max(0, t.progress - 12 * dt);
+        }
+      }
+
+      // 5. Extraction check
+      if (state.exit.active && state.playerFloor === state.exit.floor) {
+        const ex = state.exit;
+        if (p.x > ex.x && p.x < ex.x + ex.w && p.y > ex.y && p.y < ex.y + ex.h) {
+          endGame('WON', `EXTRACTED WITH ${state.timeLeft.toFixed(2)}s REMAINING`);
+          return;
+        }
+      }
+
+      // 6. EMP Trap Logic
+      if (state.empTrap) {
+        if (state.empTrap.armedTimer > 0) {
+          state.empTrap.armedTimer = Math.max(0, state.empTrap.armedTimer - dt);
+        }
+        if (
+          state.empTrap.armedTimer === 0 &&
+          state.empTrap.floor === state.playerFloor &&
+          Math.hypot(p.x - state.empTrap.x, p.y - state.empTrap.y) < 24
+        ) {
+          state.empTrap = null;
+          startQTE('OWN EMP SELF-SHOCK!', 'Complete QTE to break free before drone arrives!', null, true);
+          return;
+        }
+        if (
+          state.empTrap &&
+          state.empTrap.floor === state.sentinel.floor &&
+          state.sentinel.floorTransitionTimer === 0 &&
+          Math.hypot(state.sentinel.x - state.empTrap.x, state.sentinel.y - state.empTrap.y) < 28
+        ) {
+          state.empTrap = null;
+          state.sentinel.stunTimer = 5.0;
+          state.sentinel.alertTarget = null;
+          playTone(180, 'square', 0.45, 0.14, 55);
+        }
+      }
+
+      // 7. Sentinel Movement, Floor Hopping, Mines & Vision
+      const s = state.sentinel;
+      if (s.stunTimer > 0) {
+        s.stunTimer = Math.max(0, s.stunTimer - dt);
+      } else if (s.floorTransitionTimer > 0) {
+        s.floorTransitionTimer = Math.max(0, s.floorTransitionTimer - dt);
+        if (s.floorTransitionTimer === 0 && s.targetFloor) {
+          s.floor = s.targetFloor;
+          s.waypoints = FLOOR_LAYOUTS[s.floor].waypoints;
+          s.wpIndex = 0;
+          const entry = FLOOR_LAYOUTS[s.floor].shaft;
+          s.x = entry.x + entry.w / 2;
+          s.y = entry.y + entry.h / 2;
+          s.targetFloor = null;
+        }
+      } else {
+        if (cfg.expert) {
+          state.mineDropTimer -= dt;
+          if (state.mineDropTimer <= 0) {
+            if (canPlaceMineAt(s.x, s.y, s.floor)) {
+              state.mineDropTimer = 3.6;
+              state.mines.push({ x: s.x, y: s.y, floor: s.floor, r: 10, armedTimer: 1.2 });
+              if (state.mines.length > 8) state.mines.shift();
+            } else {
+              state.mineDropTimer = 0.45;
+            }
+          }
+        }
+
+        if (s.alertTarget) {
+          if (s.floor !== s.alertTarget.floor) {
+            const shaft = FLOOR_LAYOUTS[s.floor].shaft;
+            const rem = moveTowards(s, shaft.x + shaft.w / 2, shaft.y + shaft.h / 2, s.speed * 1.25, dt);
+            if (rem < 5) beginFloorTransition(s, s.alertTarget.floor);
+          } else {
+            const rem = moveTowards(s, s.alertTarget.x, s.alertTarget.y, s.speed * 1.3, dt);
+            if (rem < 6) {
+              s.alertTarget.checkTimer += dt;
+              s.angle += dt * 4.5;
+              if (s.alertTarget.checkTimer >= 1.7) {
+                s.alertTarget = null;
+              }
+            }
+          }
+        } else {
+          const wp = s.waypoints[s.wpIndex];
+          const rem = moveTowards(s, wp.x, wp.y, s.speed, dt);
+          if (rem < 8) {
+            s.wpIndex = (s.wpIndex + 1) % s.waypoints.length;
+            if (cfg.expert && s.wpIndex === 0) {
+              const shaft = FLOOR_LAYOUTS[s.floor].shaft;
+              s.x = shaft.x + shaft.w / 2;
+              s.y = shaft.y + shaft.h / 2;
+              beginFloorTransition(s, s.floor === 1 ? 2 : 1);
+            }
+          }
+        }
+      }
+
+      for (const m of state.mines) {
+        if (m.armedTimer > 0) m.armedTimer = Math.max(0, m.armedTimer - dt);
+        if (m.armedTimer === 0 && m.floor === state.playerFloor && Math.hypot(p.x - m.x, p.y - m.y) < p.r + m.r) {
+          endGame('LOST', 'DETONATED A SENTINEL MINE');
+          return;
+        }
+      }
+
+      let tension = 0;
+      if (s.floor === state.playerFloor && s.stunTimer === 0 && s.floorTransitionTimer === 0) {
+        const pdx = p.x - s.x;
+        const pdy = p.y - s.y;
+        const pDist = Math.hypot(pdx, pdy);
+        const angleToPlayer = Math.atan2(pdy, pdx);
+        let angleDiff = Math.abs(angleToPlayer - s.angle);
+        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+        const spotted = !state.hiding &&
+                        pDist <= s.visionRange &&
+                        angleDiff <= s.visionHalfAngle &&
+                        hasLineOfSight(s.x, s.y, p.x, p.y, s.floor);
+
+        if (spotted) {
+          p.exposure = Math.min(1, p.exposure + dt * cfg.exposureRate);
+          if (p.exposure >= 1) {
+            endGame('LOST', 'DETECTED BY SENTINEL DRONE');
+            return;
+          }
+        } else {
+          p.exposure = Math.max(0, p.exposure - dt * 2.0);
+        }
+
+        const proxTension = Math.max(0, 1 - pDist / 280) * 0.65;
+        tension = Math.min(1, Math.max(p.exposure, spotted ? 0.85 : proxTension));
+      } else {
+        p.exposure = Math.max(0, p.exposure - dt * 2.5);
+      }
+
+      updateChaseHeartbeat(dt, tension);
+      updateHUD();
+    }
+
+    function endGame(status, reason) {
+      state.status = status;
+      state.loseReason = reason;
+      state.isNewBest = false;
+
+      if (status === 'WON' && state.timeLeft > bestTimes[selectedMode]) {
+        bestTimes[selectedMode] = state.timeLeft;
+        state.isNewBest = true;
+      }
+
+      qteState = null;
+      qteOverlay.classList.remove('visible');
+      diffBar.classList.add('hidden');
+      updateChaseHeartbeat(0, 0);
+      if (status === 'WON') {
+        playTone(660, 'sine', 0.15);
+        setTimeout(() => playTone(990, 'sine', 0.3), 140);
+      } else {
+        playTone(150, 'sawtooth', 0.4, 0.14, 65);
+      }
+      updateHUD();
+    }
+
+    function updateHUD() {
+      const cfg = MODES[selectedMode];
+      const hackedCount = state.terminals.filter(t => t.hacked).length;
+      const timerEl = document.getElementById('timer');
+      timerEl.textContent = `${state.timeLeft.toFixed(2)}s`;
+      timerEl.className = state.timeLeft <= 12 ? 'danger' : '';
+
+      const modeEl = document.getElementById('mode-badge');
+      modeEl.textContent = cfg.label;
+      modeEl.className = cfg.expert ? 'expert' : '';
+
+      document.getElementById('floor-badge').textContent = cfg.expert ? `F${state.playerFloor} / F2` : 'F1';
+      document.getElementById('terminals-count').textContent = `${hackedCount} / ${state.terminals.length}`;
+      document.getElementById('best-time').textContent = `${bestTimes[selectedMode].toFixed(2)}s`;
+
+      if (cfg.hasSprint) {
+        const stamFill = document.getElementById('stamina-fill');
+        const stamLabel = document.getElementById('stamina-label');
+        if (state.sprintCooldownLeft > 0) {
+          const pct = ((cfg.sprintCooldown - state.sprintCooldownLeft) / cfg.sprintCooldown) * 100;
+          stamFill.style.width = `${pct}%`;
+          stamFill.className = 'cooldown';
+          stamLabel.textContent = `${state.sprintCooldownLeft.toFixed(1)}s`;
+        } else {
+          const pct = (state.staminaTimeLeft / cfg.sprintDuration) * 100;
+          stamFill.style.width = `${pct}%`;
+          stamFill.className = state.isSprinting ? 'sprint' : '';
+          stamLabel.textContent = state.isSprinting ? 'SPRINTING' : `${state.staminaTimeLeft.toFixed(1)}s`;
+        }
+      }
+
+      if (cfg.expert) {
+        const empEl = document.getElementById('emp-status');
+        if (state.empAvailable) {
+          empEl.textContent = 'EMP: READY [F]';
+        } else if (state.empTrap) {
+          empEl.textContent = state.empTrap.armedTimer > 0
+            ? `EMP: STEP OFF (${state.empTrap.armedTimer.toFixed(1)}s)`
+            : 'EMP: LIVE ON FLOOR';
+        } else {
+          empEl.textContent = 'EMP: USED';
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cfg = MODES[selectedMode];
+      const layout = FLOOR_LAYOUTS[state.playerFloor];
+
+      // 1. Floor
+      if (assets.floor.loaded) {
+        ctx.drawImage(assets.floor, 0, 0, canvas.width, canvas.height);
+        if (state.playerFloor === 2) {
+          ctx.fillStyle = 'rgba(136, 19, 55, 0.22)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      } else {
+        ctx.strokeStyle = '#131d33';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += 45) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 45) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
+      }
+
+      // 2. Hiding Spots & Floor Shaft (Expert)
+      if (cfg.expert) {
+        for (const spot of layout.hidingSpots) {
+          ctx.fillStyle = state.hiding && pointInRect(state.player.x, state.player.y, spot)
+            ? 'rgba(16, 185, 129, 0.28)'
+            : 'rgba(16, 185, 129, 0.14)';
+          ctx.strokeStyle = '#34d399';
+          ctx.setLineDash([5, 4]);
+          ctx.lineWidth = 2;
+          ctx.fillRect(spot.x, spot.y, spot.w, spot.h);
+          ctx.strokeRect(spot.x, spot.y, spot.w, spot.h);
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#a7f3d0';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('HIDE (80%)', spot.x + spot.w / 2, spot.y + spot.h / 2 + 3);
+        }
+
+        const sh = layout.shaft;
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.22)';
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2;
+        ctx.fillRect(sh.x, sh.y, sh.w, sh.h);
+        ctx.strokeRect(sh.x, sh.y, sh.w, sh.h);
+        ctx.fillStyle = '#f3e8ff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`TO F${sh.targetFloor}`, sh.x + sh.w / 2, sh.y + sh.h / 2 + 3);
+      }
+
+      // 3. Extraction Zone
+      if (state.playerFloor === state.exit.floor) {
+        const ex = state.exit;
+        ctx.fillStyle = ex.active ? 'rgba(16, 185, 129, 0.24)' : 'rgba(100, 116, 139, 0.14)';
+        ctx.strokeStyle = ex.active ? '#10b981' : '#64748b';
+        ctx.lineWidth = 2;
+        ctx.fillRect(ex.x, ex.y, ex.w, ex.h);
+        ctx.strokeRect(ex.x, ex.y, ex.w, ex.h);
+        ctx.fillStyle = ex.active ? '#34d399' : '#94a3b8';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('EXIT', ex.x + ex.w / 2, ex.y + ex.h / 2 + 4);
+      }
+
+      // 4. Walls
+      for (const w of layout.walls) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.strokeRect(w.x, w.y, w.w, w.h);
+      }
+
+      // 5. Mines on current floor
+      for (const m of state.mines) {
+        if (m.floor !== state.playerFloor) continue;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx.fillStyle = m.armedTimer > 0 ? 'rgba(250, 204, 21, 0.65)' : '#f43f5e';
+        ctx.fill();
+        ctx.strokeStyle = '#ffe4e6';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // 6. EMP Trap on current floor
+      if (state.empTrap && state.empTrap.floor === state.playerFloor) {
+        const tr = state.empTrap;
+        const arming = tr.armedTimer > 0;
+        ctx.beginPath();
+        ctx.arc(tr.x, tr.y, 26, 0, Math.PI * 2);
+        ctx.strokeStyle = arming ? '#facc15' : '#38bdf8';
+        if (arming) ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.arc(tr.x, tr.y, 9, 0, Math.PI * 2);
+        ctx.fillStyle = arming ? '#facc15' : '#38bdf8';
+        ctx.fill();
+
+        if (arming) {
+          ctx.fillStyle = '#fef08a';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`STEP OFF ${tr.armedTimer.toFixed(1)}s`, tr.x, tr.y - 32);
+        }
+      }
+
+      // 7. Terminals on current floor
+      for (const t of state.terminals) {
+        if (t.floor !== state.playerFloor) continue;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = t.hacked ? '#10b981' : '#0284c7';
+        ctx.fill();
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (!t.hacked && t.progress > 0) {
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 23, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * (t.progress / 100)));
+          ctx.strokeStyle = t.progress < 30 && cfg.expert ? '#fb7185' : '#facc15';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+      }
+
+      // 8. Sentinel & Vision Cone
+      const s = state.sentinel;
+      if (s.floor === state.playerFloor) {
+        if (s.stunTimer === 0 && s.floorTransitionTimer === 0) {
+          const rayCount = 48;
+          const activeWalls = layout.walls;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          for (let i = 0; i <= rayCount; i++) {
+            const a = (s.angle - s.visionHalfAngle) + (i / rayCount) * (s.visionHalfAngle * 2);
+            let rx = s.x, ry = s.y;
+            for (let r = 0; r < s.visionRange; r += 6) {
+              const tx = s.x + Math.cos(a) * r;
+              const ty = s.y + Math.sin(a) * r;
+              if (activeWalls.some(w => pointInRect(tx, ty, w))) break;
+              rx = tx; ry = ty;
+            }
+            ctx.lineTo(rx, ry);
+          }
+          ctx.closePath();
+          ctx.fillStyle = state.player.exposure > 0
+            ? `rgba(244, 63, 94, ${0.28 + state.player.exposure * 0.35})`
+            : 'rgba(244, 63, 94, 0.22)';
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.angle);
+        if (assets.sentinel.loaded) {
+          if (assets.sentinel.needsScreenBlend) ctx.globalCompositeOperation = 'screen';
+          ctx.drawImage(assets.sentinel.processed || assets.sentinel, -26, -26, 52, 52);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, s.r, 0, Math.PI * 2);
+          ctx.fillStyle = '#f43f5e';
+          ctx.fill();
+        }
+        ctx.restore();
+
+        if (s.stunTimer > 0) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`STUNNED ${s.stunTimer.toFixed(1)}s`, s.x, s.y - 30);
+        } else if (s.alertTarget && s.alertTarget.checkTimer > 0) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('SCANNING...', s.x, s.y - 30);
+        }
+      }
+
+      // 9. Player + Visibility Ring
+      const p = state.player;
+      ctx.save();
+      const pulseRadius = 22 + Math.sin(performance.now() * 0.008) * 2.5;
+      const ringColor = state.hiding ? '#34d399' : (state.isSprinting ? '#facc15' : '#7dd3fc');
+
+      const glow = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, pulseRadius + 8);
+      glow.addColorStop(0, state.hiding ? 'rgba(52, 211, 153, 0.35)' : 'rgba(56, 189, 248, 0.35)');
+      glow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pulseRadius + 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pulseRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const ptrX = p.x + Math.cos(state.lastMoveAngle) * pulseRadius;
+      const ptrY = p.y + Math.sin(state.lastMoveAngle) * pulseRadius;
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(ptrX, ptrY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (assets.player.loaded) {
+        if (assets.player.needsScreenBlend) ctx.globalCompositeOperation = 'screen';
+        ctx.drawImage(assets.player.processed || assets.player, p.x - 24, p.y - 24, 48, 48);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 10. Overlays
+      if (state.status !== 'PLAYING') {
+        ctx.fillStyle = 'rgba(7, 11, 20, 0.86)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+
+        if (state.status === 'START') {
+          ctx.fillStyle = cfg.expert ? '#fb7185' : '#38bdf8';
+          ctx.font = 'bold 40px sans-serif';
+          ctx.fillText('60-SECOND BREACH', canvas.width / 2, 165);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.font = '17px sans-serif';
+          ctx.fillText(
+            cfg.expert
+              ? 'EXPERT: 2 Floors, 5 Terminals, Mines, 2 QTEs, Hiding Spots & 1 EMP Trap'
+              : `One Mission: Hack ${state.terminals.length} terminals & reach EXIT`,
+            canvas.width / 2, 212
+          );
+          ctx.fillText(
+            cfg.expert
+              ? 'Tap hacking (<30% resets if idle) • 2.5s Sprint / 7s recharge'
+              : (cfg.hasSprint
+                  ? 'Sentinel speeds up after every hack • 2 QTEs • 2.5s Sprint / 7s recharge'
+                  : 'Sentinel speeds up after every hack • 1 QTE per terminal • No sprint'),
+            canvas.width / 2, 242
+          );
+          ctx.fillText(
+            `Deadline: ${cfg.timeLimit.toFixed(0)}s on ${cfg.label} mode  •  Best (${cfg.label}): ${bestTimes[selectedMode].toFixed(2)}s`,
+            canvas.width / 2, 272
+          );
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 19px sans-serif';
+          ctx.fillText('TAP CANVAS OR PRESS [SPACE] TO INFILTRATE', canvas.width / 2, 425);
+        } else {
+          ctx.fillStyle = state.status === 'WON' ? '#10b981' : '#f43f5e';
+          ctx.font = 'bold 42px sans-serif';
+          ctx.fillText(state.status === 'WON' ? 'BREACH SUCCESSFUL' : 'MISSION FAILED', canvas.width / 2, 230);
+
+          ctx.fillStyle = '#e2e8f0';
+          ctx.font = '20px sans-serif';
+          ctx.fillText(state.loseReason, canvas.width / 2, 276);
+
+          ctx.fillStyle = state.isNewBest ? '#facc15' : '#34d399';
+          ctx.font = 'bold 18px sans-serif';
+          const bestLabel = state.isNewBest
+            ? `NEW ${cfg.label} BEST TIME: ${bestTimes[selectedMode].toFixed(2)}s LEFT!`
+            : `${cfg.label} BEST TIME: ${bestTimes[selectedMode].toFixed(2)}s LEFT`;
+          ctx.fillText(bestLabel, canvas.width / 2, 316);
+
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '17px sans-serif';
+          ctx.fillText('Tap Canvas or Press [R] to Reboot Run', canvas.width / 2, 372);
+        }
+      }
+    }
+
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
